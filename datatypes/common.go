@@ -6,8 +6,8 @@ import (
 	"time"
 )
 
-// Block describes part of the relavant block information trimmed from the block
-// retrieved from the rpc client.
+// Block describes part of the block information trimmed from the block data
+// by the rpc client.
 type Block struct {
 	Height       int64
 	Time         time.Time
@@ -19,8 +19,8 @@ type Block struct {
 	PreviousHash string
 }
 
-// Transaction holds generic block transaction data that is not specifically
-// tied to either a transaction input or output.
+// Transaction holds generic block transaction data that contains both the
+// transaction's input or output data.
 type Transaction struct {
 	BlockHash   string
 	BlockHeight int64
@@ -40,7 +40,7 @@ type Transaction struct {
 	Outpoints   []TxOutput
 }
 
-// TxInput holds an inpoint transaction to another transaction.
+// TxInput holds an inpoint transaction of a given transaction.
 type TxInput struct {
 	PreviousTxHash  string
 	PreviousTxIndex uint32
@@ -52,7 +52,7 @@ type TxInput struct {
 	Vout            uint32
 }
 
-// TxOutput holds an outpoint transaction to another transaction.
+// TxOutput holds an outpoint transaction of a given transaction.
 type TxOutput struct {
 	TxHash       string
 	TxIndex      uint32

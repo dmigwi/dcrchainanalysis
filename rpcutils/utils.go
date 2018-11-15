@@ -26,8 +26,8 @@ func (v *RPCVersion) String() string {
 }
 
 // ConnectRPCNode attempts to create a new websocket connection to a dcrd node,
-// with the given credentials and optional notification handlers.
-// It also returns the version of the RPC server that will be connected to.
+// with the provided credentials and optional notification handlers. It also
+// returns the prc server version.
 func ConnectRPCNode(host, user, pass, cert string, disableTLS bool,
 	ntfnHandlers ...*rpcclient.NotificationHandlers) (*rpcclient.Client,
 	*RPCVersion, error) {

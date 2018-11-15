@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	// MainNet is the environment when the decred actual blockchain runs on.
+	// MainNet is the environment where the decred actual blockchain runs on.
 	MainNet NetworkType = iota
 
 	// TestNet is a smaller version of decred net/environment that is used to

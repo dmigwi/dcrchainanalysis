@@ -19,23 +19,21 @@ import (
 
 // ExtractBlockData extracts the required block data from the MsgBlock provided.
 func ExtractBlockData(blockData *wire.MsgBlock) *Block {
-	block := &Block{Hash: blockData.BlockHash().String()}
-
 	blockHeader := blockData.Header
-	block.MerkleRoot = blockHeader.MerkleRoot.String()
-	block.Height = int64(blockHeader.Height)
-	block.Time = blockHeader.Timestamp
-	block.FreshStake = blockHeader.FreshStake
-	block.Voters = blockHeader.Voters
-	block.StakeRoot = blockHeader.StakeRoot.String()
-	block.PreviousHash = blockHeader.PrevBlock.String()
-
-	return block
+	return &Block{
+		Hash:         blockData.BlockHash().String(),
+		MerkleRoot:   blockHeader.MerkleRoot.String(),
+		Height:       int64(blockHeader.Height),
+		Time:         blockHeader.Timestamp,
+		FreshStake:   blockHeader.FreshStake,
+		Voters:       blockHeader.Voters,
+		StakeRoot:    blockHeader.StakeRoot.String(),
+		PreviousHash: blockHeader.PrevBlock.String(),
+	}
 }
 
-// ExtractBlockTransactions extracts the returned transactions data from the
-// provided MsgBlock. Only the stake transactions data that is currently
-// extracted.
+// ExtractBlockTransactions extracts the transactions data from the provided
+// MsgBlock. Only the stake transactions data that is currently extracted.
 func ExtractBlockTransactions(blockData *wire.MsgBlock,
 	activeNet networkconfig.NetworkType) []*Transaction {
 	block := ExtractBlockData(blockData)
@@ -58,7 +56,7 @@ func ExtractBlockTransactions(blockData *wire.MsgBlock,
 		var sent, spent float64
 		vins := make([]TxInput, len(sTx.TxIn))
 
-		// Extract the transaction inputs
+		// Extract the transaction inputs.
 		for v, in := range sTx.TxIn {
 			vins[v] = TxInput{
 				PreviousTxHash:  in.PreviousOutPoint.Hash.String(),
@@ -79,7 +77,7 @@ func ExtractBlockTransactions(blockData *wire.MsgBlock,
 
 		vouts := make([]TxOutput, len(sTx.TxOut))
 
-		// Extract the transction outputs
+		// Extract the transaction outputs.
 		for v, out := range sTx.TxOut {
 			vout := TxOutput{
 				TxHash:   tx.TxID,
@@ -118,8 +116,8 @@ func ExtractBlockTransactions(blockData *wire.MsgBlock,
 	return txs
 }
 
-// ExtractRawTxTransaction extracts a single transaction with all its inputs and
-// outputs.
+// ExtractRawTxTransaction extracts the transaction with all its inputs and
+// outputs from a single transaction raw tx data.
 func ExtractRawTxTransaction(rawTx *dcrjson.TxRawResult) *Transaction {
 	tx := &Transaction{
 		BlockHash:   rawTx.BlockHash,
