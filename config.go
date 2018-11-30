@@ -21,10 +21,12 @@ import (
 )
 
 const (
-	defaultLogLevel       = "debug"
+	defaultLogLevel       = "info"
 	defaultLogDirname     = "logs"
 	defaultDataDirname    = "data"
-	defaultHost           = "localhost"
+	defaultDcrdHost       = "127.0.0.1"
+	defaultDCAHost        = "127.0.0.1" // dcrchainanalysis tool default host
+	defaultDCAPort        = "8476"      // dcrchainanalysis tool default port
 	defaultConfigFilename = "dcrchainanalyser.conf"
 	defaultLogFilename    = "dcrchainanalyser.log"
 )
@@ -47,6 +49,10 @@ type config struct {
 	ShowVersion bool   `short:"V" long:"version" description:"Display version information and exit"`
 	TestNet     bool   `long:"testnet" description:"Use the test network (default mainnet)"`
 	SimNet      bool   `long:"simnet" description:"Use the simulation test network (default mainnet)"`
+
+	// DCA server configuration
+	DCAHost string `long:"dcahost" description:"Chain analysis tool server host (default localhost)"`
+	DCAPort string `long:"dcaport" description:"Chain analysis tool server host (default 8476)"`
 
 	// RPC client options
 	DcrdUser         string `long:"dcrduser" description:"Daemon RPC user name"`
@@ -257,21 +263,23 @@ func loadConfig() (*config, *extraParams, error) {
 
 	// Fetch the active network configured.
 	switch {
-	case preCfg.TestNet && preCfg.SimNet:
+	case cfg.TestNet && cfg.SimNet:
 		fmt.Println("Testnet and Simnet should not be set simultaneously.")
 		os.Exit(0)
-	case preCfg.TestNet:
+	case cfg.TestNet:
 		params.ActiveNet = networkconfig.TestNet
-	case preCfg.SimNet:
+	case cfg.SimNet:
 		params.ActiveNet = networkconfig.SimNet
 	default:
 		params.ActiveNet = networkconfig.MainNet
 	}
 
-	if preCfg.DcrdServ == "" {
-		cfg.DcrdServ = defaultHost + ":" + params.ActiveNet.RPCPort()
-	} else {
-		cfg.DcrdServ = preCfg.DcrdServ
+	if cfg.DcrdServ == "" {
+		cfg.DcrdServ = defaultDcrdHost + ":" + params.ActiveNet.RPCPort()
+	}
+
+	if cfg.DCAHost == "" {
+		cfg.DCAHost = defaultDCAHost + ":" + defaultDCAPort
 	}
 
 	// Append the network type to the log directory so it is "namespaced"

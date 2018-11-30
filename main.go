@@ -3,63 +3,87 @@
 package main
 
 import (
-	"encoding/json"
-	"fmt"
+	"net/http"
+	"os"
+	"os/signal"
+	"time"
 
-	"github.com/raedahgroup/dcrchainanalysis/v1/datatypes"
+	"github.com/gorilla/mux"
 	"github.com/raedahgroup/dcrchainanalysis/v1/rpcutils"
 )
 
-const (
-	blockHeight  int64 = 50024
-	transactionX       = "d2656cf5fe1279a5a51d82820db47faff470a6bcec80692fd3629427e17699a3"
-)
-
-func start() error {
-	cfg, otherConfig, err := loadConfig()
+// start sets up the explorer.
+func start() (*explorer, error) {
+	cfg, otherCfg, err := loadConfig()
 	if err != nil {
-		return err
+		return nil, err
 	}
+
+	log.Info("Starting up the Chain Analysis Tool")
 
 	client, rpcVersion, err := rpcutils.ConnectRPCNode(cfg.DcrdServ, cfg.DcrdUser,
 		cfg.DcrdPass, cfg.DcrdCert, cfg.DisableDaemonTLS, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	log.Infof("Connected to a dcrd node successfully: %s", rpcVersion.String())
+	log.Infof("Connected to a dcrd node successfully: %s, %s",
+		otherCfg.ActiveNet.String(), rpcVersion.String())
 
-	log.Infof("Fetching block at height %d", blockHeight)
-
-	blockData, _, err := rpcutils.GetBlock(client, blockHeight)
-	if err != nil {
-		return fmt.Errorf("failed to fetch block at height %d", blockHeight)
+	exp := &explorer{
+		Client:      client,
+		RPCVersion:  rpcVersion,
+		Params:      cfg,
+		OtherParams: otherCfg,
 	}
 
-	txs := datatypes.ExtractBlockTransactions(blockData.MsgBlock(), otherConfig.ActiveNet)
-	d, _ := json.Marshal(txs)
-
-	log.Infof("All the stake Transactions associated with block %d include %s",
-		blockHeight, string(d))
-
-	log.Infof("\n\n Fetching transaction %s", transactionX)
-
-	txData, err := rpcutils.GetTransactionVerboseByID(client, transactionX)
-	if err != nil {
-		return fmt.Errorf("failed to fetch transaction %s", transactionX)
-	}
-
-	tx := datatypes.ExtractRawTxTransaction(txData)
-	s, _ := json.Marshal(tx)
-
-	log.Infof("Transaction fetched has the following data %s", string(s))
-
-	return nil
+	return exp, nil
 }
 
+// main initaites program execution.
 func main() {
-	err := start()
+	expl, err := start()
 	if err != nil {
 		log.Error(err)
+		os.Exit(1)
 	}
+
+	r := mux.NewRouter()
+	r.HandleFunc("/", expl.HealthHandler)
+	r.HandleFunc("/api/v1/{tx}", expl.TxProbabilityHandler)
+	r.HandleFunc("/api/v1/{tx}/all", expl.AllTxSolutionsHandler)
+
+	// Return the health page for all 404s
+	r.NotFoundHandler = http.HandlerFunc(expl.HealthHandler)
+
+	server := &http.Server{
+		Handler:      r,
+		Addr:         expl.Params.DCAHost,
+		WriteTimeout: 15 * time.Second,
+		ReadTimeout:  15 * time.Second,
+	}
+
+	log.Info("Server running :", expl.Params.DCAHost)
+
+	// start server in a go routine.
+	go func() {
+		if err = server.ListenAndServe(); err != nil {
+			log.Error(err)
+			os.Exit(1)
+		}
+	}()
+
+	c := make(chan os.Signal, 1)
+	defer close(c)
+
+	// We'll accept graceful shutdowns when quit via SIGINT (Ctrl+C)
+	// SIGKILL, SIGQUIT or SIGTERM (Ctrl+/) will not be caught.
+	signal.Notify(c, os.Interrupt)
+
+	// Block until we receive our signal.
+	<-c
+
+	log.Info("(Ctrl+C) pressed")
+	log.Info("Bye, System shutting down")
+	os.Exit(0)
 }

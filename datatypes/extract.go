@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/decred/dcrd/blockchain/stake"
@@ -109,7 +110,7 @@ func ExtractBlockTransactions(blockData *wire.MsgBlock,
 		tx.Outpoints = vouts
 		tx.Sent = sent
 		tx.NumOutpoint = uint32(len(vouts))
-		tx.Fees = sent - spent
+		tx.Fees = math.Round((sent-spent)*10e8) / 10e8
 
 		txs[index] = tx
 	}
@@ -163,7 +164,6 @@ func ExtractRawTxTransaction(rawTx *dcrjson.TxRawResult) *Transaction {
 	tx.Outpoints = vouts
 	tx.Sent = sent
 	tx.NumOutpoint = uint32(len(vouts))
-	tx.Fees = sent - spent
-
+	tx.Fees = math.Round((sent-spent)*10e8) / 10e8
 	return tx
 }

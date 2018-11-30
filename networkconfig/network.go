@@ -38,7 +38,7 @@ var (
 	}
 
 	testnetParams = networkParams{
-		RPCPort: "19108",
+		RPCPort: "19109",
 		Name:    "Testnet",
 		Params:  &chaincfg.TestNet3Params,
 	}

@@ -11,8 +11,30 @@ import (
 
 	"github.com/decred/slog"
 	"github.com/jrick/logrotate/rotator"
+	"github.com/raedahgroup/dcrchainanalysis/v1/analytics"
 	"github.com/raedahgroup/dcrchainanalysis/v1/rpcutils"
 )
+
+//
+// ****Decred Chain Analysis Tool Log Levels Constitution.****
+// 1. log.Error - Indicates that something went wrong. After logging then system
+// 				  exit with an an error MAYBE called or another safer
+// 				  implementation can be invoked. Acive by default.
+// 				  by default.
+// 2. log.Info - Logs common and significant data flows/function calls. Active
+// 				 by default.
+// 3. log.Debug - Logs fine-grained informational events that are most useful
+// 					when debugging this application. Should only information
+// 					relevant to system maintainers. Not active by default.
+// 6. log.Trace - Logs finer-grained informational events than the DEBUG.
+//    				Inputs and outputs of a specific algorithm/process should be
+// 					logged using TRACE. Not active by default.
+// 4. log.Critical - Logs Fatal errors and then system exit with an error call
+// 					MUST be invoked. Not active by default.
+// 5. log.Warn - Logs about something that is not right but current function/method
+// 				 execution can proceed without much effect or disruption. Not
+// 				 active by default.
+//
 
 // logWriter implements an io.Writer that outputs to both standard output and
 // the write-end pipe of an initialized log rotator.
@@ -42,20 +64,22 @@ var (
 	// application shutdown.
 	logRotator *rotator.Rotator
 
-	rpcutilsLog = backendLog.Logger("DCA-RPC")
-	log         = backendLog.Logger("DCA-NFTN")
+	analyticsLog = backendLog.Logger("DCA-ANLY")
+	rpcutilsLog  = backendLog.Logger("DCA-RPC")
+	log          = backendLog.Logger("DCA-NFTN")
 )
 
 // Initialize package-global logger variables.
 func init() {
 	rpcutils.UseLogger(rpcutilsLog)
-	// notify.UseLogger(notifyLog)
+	analytics.UseLogger(analyticsLog)
 }
 
 // subsystemLoggers maps each subsystem identifier to its associated logger.
 var subsystemLoggers = map[string]slog.Logger{
 	"DCA-RPC":  rpcutilsLog,
 	"DCA-NFTN": log,
+	"DCA-ANLY": analyticsLog,
 }
 
 // initLogRotator initializes the logging rotater to write logs to logFile and

@@ -63,7 +63,7 @@ func ConnectRPCNode(host, user, pass, cert string, disableTLS bool,
 	}
 
 	if len(ntfnHandlers) != 1 || ntfnHndlrs == nil {
-		log.Info("RPC notifications will not be triggered.")
+		log.Debug("RPC notifications will not be triggered.")
 	}
 
 	dcrdClient, err := rpcclient.New(connCfgDaemon, ntfnHndlrs)
