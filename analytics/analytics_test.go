@@ -68,7 +68,7 @@ func TestTransactionFundsFlow(t *testing.T) {
 	}
 
 	t.Run("Test_#1", func(t *testing.T) {
-		result, err := TransactionFundsFlow(txTestData)
+		result, _, _, err := TransactionFundsFlow(txTestData)
 		if err != nil {
 			t.Fatalf("expected a nil value error to be returned but found: %v", err)
 		}
@@ -131,24 +131,30 @@ func TestTxFundsFlowProbability(t *testing.T) {
 
 	expectedPayload := []*FlowProbability{
 		{
-			OutputAmount:   5035.67279067,
-			ProbableInputs: []float64{5076.66042217},
-			Probability:    100,
+			OutputAmount:       5035.67279067,
+			Count:              1,
+			ProbableInputs:     []*Details{{Amount: 5076.66042217, Count: 1}},
+			LinkingProbability: 100,
 		},
 		{
-			OutputAmount:   39.96907437,
-			ProbableInputs: []float64{39.96949337},
-			Probability:    100,
+			OutputAmount:       39.96907437,
+			Count:              1,
+			ProbableInputs:     []*Details{{Amount: 39.96949337, Count: 1}},
+			LinkingProbability: 100,
 		},
 		{
-			OutputAmount:   40.9873785,
-			ProbableInputs: []float64{40.9873785, 5076.66042217},
-			Probability:    50,
+			OutputAmount: 40.9873785,
+			Count:        2,
+			ProbableInputs: []*Details{{Amount: 40.9873785, Count: 1},
+				{Amount: 5076.66042217, Count: 1}},
+			LinkingProbability: 50,
 		},
 	}
 
 	t.Run("Test_#1", func(t *testing.T) {
-		result := TxFundsFlowProbability(txTestData)
+		input := []float64{39.96949337, 40.9873785, 5076.66042217}
+		output := []float64{39.96907437, 40.9873785, 40.9873785, 5035.67279067}
+		result := TxFundsFlowProbability(txTestData, input, output)
 
 		if len(result) != len(expectedPayload) {
 			t.Fatalf("expected the returned payload to be length %v but was %v",

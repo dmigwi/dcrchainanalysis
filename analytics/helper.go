@@ -72,11 +72,20 @@ func GenerateCombinations(sourceArray []float64, r int64) []*GroupedValues {
 		log.Warnf("Source array is not sorted. Total combinations maybe inaccurate.")
 	}
 
-	dups := GroupDuplicates(sourceArray)
+	gD := GroupDuplicates(sourceArray)
+
+	dups := make(map[float64]int, 0)
+	// To increase the speed of iterative access to dups map contents
+	// delete all entries without duplicates.
+	for key, val := range gD {
+		if len(val.Values) > 1 {
+			dups[key] = len(val.Values)
+		}
+	}
 
 	// Add the dope element when the last entry in the source slice is duplicate.
 	lastEntry := sourceArray[len(sourceArray)-1]
-	if len(dups[lastEntry].Values) > 1 {
+	if _, ok := dups[lastEntry]; ok {
 		sourceArray = append(sourceArray, dopingElement)
 	}
 
@@ -105,11 +114,12 @@ func GenerateCombinations(sourceArray []float64, r int64) []*GroupedValues {
 // combinatorics is a recusive function that generates all the combinations C of
 // subset r values from a set of n values. i.e nCr = n-1 C r-1 + n-1 C
 func combinatorics(source []float64, r, newArrInd, sourceArrInd, prevNewArrInd int64,
-	data []float64, output chan<- []float64, dups map[float64]*GroupedValues) {
+	data []float64, output chan<- []float64, dups map[float64]int) {
 	if newArrInd == r && data[len(data)-1] != dopingElement {
 		tmp := make([]float64, len(data), len(data))
 		copy(tmp, data)
 		output <- tmp
+		tmp = nil
 		return
 	}
 
@@ -119,7 +129,8 @@ func combinatorics(source []float64, r, newArrInd, sourceArrInd, prevNewArrInd i
 		return
 	}
 
-	for i := 1; ; {
+	count := 1
+	for i := 0; ; {
 		// when r = 1 keep all the duplicates
 		if r == 1 {
 			break
@@ -132,12 +143,7 @@ func combinatorics(source []float64, r, newArrInd, sourceArrInd, prevNewArrInd i
 			}
 		}
 
-		item := source[sourceArrInd]
-		count := 1
-		if dups[item] != nil {
-			count = len(dups[item].Values)
-		}
-
+		count = dups[source[sourceArrInd]]
 		if i >= count {
 			break
 		}

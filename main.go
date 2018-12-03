@@ -53,14 +53,19 @@ func main() {
 	r.HandleFunc("/api/v1/{tx}", expl.TxProbabilityHandler)
 	r.HandleFunc("/api/v1/{tx}/all", expl.AllTxSolutionsHandler)
 
+	if expl.Params.CPUProfile {
+		log.Debug("CPU profiling Activated. Setting up the Profiling.")
+
+		r.HandleFunc("/debug/{name}", expl.PprofHandler)
+	}
 	// Return the health page for all 404s
 	r.NotFoundHandler = http.HandlerFunc(expl.HealthHandler)
 
 	server := &http.Server{
 		Handler:      r,
 		Addr:         expl.Params.DCAHost,
-		WriteTimeout: 15 * time.Second,
-		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 5 * time.Second,
+		ReadTimeout:  5 * time.Second,
 	}
 
 	log.Info("Server running :", expl.Params.DCAHost)

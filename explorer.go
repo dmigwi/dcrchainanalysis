@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/pprof"
+	"strings"
 
 	"github.com/decred/dcrd/rpcclient"
 	"github.com/gorilla/mux"
@@ -48,7 +50,7 @@ func (exp *explorer) StatusHandler(w http.ResponseWriter, r *http.Request, err e
 func (exp *explorer) AllTxSolutionsHandler(w http.ResponseWriter, r *http.Request) {
 	transactionX := mux.Vars(r)["tx"]
 
-	d, err := exp.analyzeTx(transactionX)
+	d, _, _, err := exp.analyzeTx(transactionX)
 	if err != nil {
 		exp.StatusHandler(w, r, err)
 		return
@@ -70,13 +72,13 @@ func (exp *explorer) AllTxSolutionsHandler(w http.ResponseWriter, r *http.Reques
 func (exp *explorer) TxProbabilityHandler(w http.ResponseWriter, r *http.Request) {
 	transactionX := mux.Vars(r)["tx"]
 
-	d, err := exp.analyzeTx(transactionX)
+	d, inArr, outArr, err := exp.analyzeTx(transactionX)
 	if err != nil {
 		exp.StatusHandler(w, r, err)
 		return
 	}
 
-	solProbability := analytics.TxFundsFlowProbability(d)
+	solProbability := analytics.TxFundsFlowProbability(d, inArr, outArr)
 
 	strData, err := json.Marshal(solProbability)
 	if err != nil {
@@ -90,15 +92,32 @@ func (exp *explorer) TxProbabilityHandler(w http.ResponseWriter, r *http.Request
 }
 
 // analyzeTx fetches all the possible solutions available for the provided transaction.
-func (exp *explorer) analyzeTx(transactionX string) ([]*analytics.AllFundsFlows, error) {
+func (exp *explorer) analyzeTx(transactionX string) ([]*analytics.AllFundsFlows,
+	[]float64, []float64, error) {
 	log.Infof("Fetching transaction %s", transactionX)
 
 	txData, err := rpcutils.GetTransactionVerboseByID(exp.Client, transactionX)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch transaction %s", transactionX)
+		return nil, []float64{}, []float64{},
+			fmt.Errorf("failed to fetch transaction %s", transactionX)
 	}
 
 	tx := datatypes.ExtractRawTxTransaction(txData)
 
 	return analytics.TransactionFundsFlow(tx)
+}
+
+// PprofHandler fetches the correct pprof handler needed.
+func (exp *explorer) PprofHandler(w http.ResponseWriter, r *http.Request) {
+	handlerType := mux.Vars(r)["name"]
+	switch strings.ToLower(handlerType) {
+	case "pprof":
+		pprof.Index(w, r)
+	case "trace":
+		pprof.Trace(w, r)
+	case "profile":
+		pprof.Profile(w, r)
+	default:
+		pprof.Handler(handlerType).ServeHTTP(w, r)
+	}
 }

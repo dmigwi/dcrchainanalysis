@@ -49,6 +49,7 @@ type config struct {
 	ShowVersion bool   `short:"V" long:"version" description:"Display version information and exit"`
 	TestNet     bool   `long:"testnet" description:"Use the test network (default mainnet)"`
 	SimNet      bool   `long:"simnet" description:"Use the simulation test network (default mainnet)"`
+	CPUProfile  bool   `long:"cpuprofile" description:"Use to profile this golang app"`
 
 	// DCA server configuration
 	DCAHost string `long:"dcahost" description:"Chain analysis tool server host (default localhost)"`

@@ -41,17 +41,25 @@ type AllFundsFlows struct {
 // RawResults defines some compressed solutions data needed for further processing
 // of the transaction funds flow.
 type RawResults struct {
-	Inputs          []float64
-	MatchingOutputs map[float64]int
+	Inputs          map[float64]int
+	MatchingOutputs map[float64]*Details
+}
+
+// Details defines the input or output amount value and its duplicates count.
+type Details struct {
+	Amount float64
+	Count  int
 }
 
 // FlowProbability defines the final transaction funds flow data that includes
 // the output tx funds flow probability.
 type FlowProbability struct {
-	OutputAmount   float64
-	ProbableInputs []float64
-	uniqueInputs   map[float64]float64
-	Probability    float64
+	OutputAmount       float64
+	Count              int
+	LinkingProbability float64
+	PercentOfInputs    float64
+	ProbableInputs     []*Details
+	uniqueInputs       map[float64]int
 }
 
 // extractAmounts retrieves the transaction input(s) and output(s) and returns
@@ -70,16 +78,20 @@ func extractAmounts(data *datatypes.Transaction) (inputs, outputs []float64) {
 	sort.Float64s(inputs)
 	sort.Float64s(outputs)
 
+	log.Debugf("The transaction has %d inputs and %d outputs amounts repectively",
+		len(inputs), len(outputs))
+
 	return
 }
 
 // TransactionFundsFlow calculates the funds flow between a set of inputs and
 // their corresponding set of outputs for the provided transaction data.
-func TransactionFundsFlow(tx *datatypes.Transaction) ([]*AllFundsFlows, error) {
+func TransactionFundsFlow(tx *datatypes.Transaction) ([]*AllFundsFlows, []float64, []float64, error) {
 	// Retrieve the inputs and outputs from the transaction's data.
 	inputs, outputs := extractAmounts(tx)
 	if len(inputs) == 0 || len(outputs) == 0 {
-		return nil, errors.New("funds flow check needs both input(s) and output(s) of a transaction")
+		return nil, inputs, outputs,
+			errors.New("funds flow check needs both input(s) and output(s) of a transaction")
 	}
 
 	log.Info("Calculating all possible sum combinations for both inputs and outputs")
@@ -91,7 +103,8 @@ func TransactionFundsFlow(tx *datatypes.Transaction) ([]*AllFundsFlows, error) {
 
 	defBinaryTree := new(Node)
 	if err := defBinaryTree.Insert(outputCombinations); err != nil {
-		return nil, fmt.Errorf("Inserting the sums combinations to the bianry tree failed: %v", err)
+		return nil, inputs, outputs,
+			fmt.Errorf("Inserting the sums combinations to the bianry tree failed: %v", err)
 	}
 
 	log.Info("Searching for matching sums between inputs and outputs amounts.")
@@ -255,24 +268,33 @@ func TransactionFundsFlow(tx *datatypes.Transaction) ([]*AllFundsFlows, error) {
 	log.Infof("Found %d matching sums between the inputs and outputs",
 		len(sol[maxBucketsCount]))
 
-	return sol[maxBucketsCount], nil
+	return sol[maxBucketsCount], inputs, outputs, nil
 }
 
-// equals works effectively when the inputs and output combinations are sorted
+// equals works effectively when the inputs and output combinations are sorted.
 func (f *AllFundsFlows) equals(item *AllFundsFlows) bool {
-	var inputsCount, outputsCount int
-	for _, elem := range f.FundsFlow {
-		for _, bucket := range item.FundsFlow {
-			if reflect.DeepEqual(bucket.Inputs.Values, elem.Inputs.Values) {
-				inputsCount++
+	var matchedBuckets, totalBuckets int
+
+	for _, bucket := range item.FundsFlow {
+		var isInMatch, isOutMatch bool
+		for _, elem := range f.FundsFlow {
+			if reflect.DeepEqual(bucket.Inputs.Values,
+				elem.Inputs.Values) {
+				isInMatch = true
 			}
 
-			if reflect.DeepEqual(bucket.MatchedOutputs.Values, elem.MatchedOutputs.Values) {
-				outputsCount++
+			if reflect.DeepEqual(bucket.MatchedOutputs.Values,
+				elem.MatchedOutputs.Values) {
+				isOutMatch = true
 			}
 		}
+		if isInMatch && isOutMatch {
+			matchedBuckets++
+		}
+		totalBuckets++
 	}
-	if inputsCount == len(item.FundsFlow) && outputsCount == len(item.FundsFlow) {
+
+	if totalBuckets == matchedBuckets {
 		return true
 	}
 	return false
@@ -295,7 +317,8 @@ func getTotalCombinations(sourceArr []float64, p txProperties) (totalCombination
 
 // TxFundsFlowProbability obtains the funds flow probability for each output in
 // relation to its possible matching input(s).
-func TxFundsFlowProbability(rawData []*AllFundsFlows) []*FlowProbability {
+func TxFundsFlowProbability(rawData []*AllFundsFlows,
+	inSourceArr, outSourceArr []float64) []*FlowProbability {
 	totalRes := make([]*RawResults, 0)
 	if len(rawData) == 0 {
 		return nil
@@ -303,41 +326,80 @@ func TxFundsFlowProbability(rawData []*AllFundsFlows) []*FlowProbability {
 
 	log.Debug("Calculating the transaction funds flow probabiblity...")
 
+	allInputs := make(map[float64]int, 0)
+	// inSourceArr contains the original list of input amounts from the tx.
+	for _, val := range inSourceArr {
+		allInputs[val]++
+	}
+
+	allOutputs := make(map[float64]int, 0)
+	// outSourceArr contains the original list of output amount from the tx.
+	for _, val := range outSourceArr {
+		allOutputs[val]++
+	}
+
 	for _, entries := range rawData {
 		for _, bucket := range entries.FundsFlow {
-			g := &RawResults{Inputs: bucket.Inputs.Values}
+			g := new(RawResults)
+
+			if g.Inputs == nil {
+				g.Inputs = make(map[float64]int, 0)
+			}
+
+			for _, a := range bucket.Inputs.Values {
+				g.Inputs[a]++
+			}
 
 			if g.MatchingOutputs == nil {
-				g.MatchingOutputs = make(map[float64]int, 0)
+				g.MatchingOutputs = make(map[float64]*Details, 0)
 			}
 
 			for _, d := range bucket.MatchedOutputs.Values {
-				g.MatchingOutputs[d]++
+				if g.MatchingOutputs[d] == nil {
+					g.MatchingOutputs[d] = &Details{}
+				}
+				g.MatchingOutputs[d].Amount = bucket.MatchedOutputs.Sum
+				g.MatchingOutputs[d].Count++
 			}
 			totalRes = append(totalRes, g)
 		}
 	}
 
 	tmpRes := make(map[float64]*FlowProbability, 0)
-	for _, tt := range totalRes {
-		for outVal := range tt.MatchingOutputs {
-			if tmpRes[outVal] == nil {
-				tmpRes[outVal] = &FlowProbability{
-					uniqueInputs: make(map[float64]float64, 0),
+	for _, res := range totalRes {
+		// isManyToMany checks if the matching bucket has many to many relationship
+		// between inputs and matching outputs. Many to many relationship means that
+		// a specific output cannot be linked with another input in the same bucket
+		// as the source of funds.
+		isManyToMany := len(res.Inputs) > 1 && len(res.MatchingOutputs) > 1
+
+		for out, outSum := range res.MatchingOutputs {
+			if tmpRes[out] == nil {
+				tmpRes[out] = &FlowProbability{
+					uniqueInputs: make(map[float64]int, 0),
 				}
 			}
 
-			tmpRes[outVal].OutputAmount = outVal
-			for _, inVal := range tt.Inputs {
-				_, ok := tmpRes[outVal].uniqueInputs[inVal]
-				if !ok && inVal >= outVal {
-					tmpRes[outVal].ProbableInputs = append(
-						tmpRes[outVal].ProbableInputs, inVal,
-					)
+			tmpRes[out].OutputAmount = out
+			tmpRes[out].Count = allOutputs[out]
+			for in := range res.Inputs {
+				_, ok := tmpRes[out].uniqueInputs[in]
+				if !ok {
+					tmpRes[out].ProbableInputs = append(
+						tmpRes[out].ProbableInputs, &Details{
+							Amount: in,
+							Count:  allInputs[in],
+						})
 
-					tmpRes[outVal].uniqueInputs[inVal] = inVal
-					tmpRes[outVal].Probability = math.Round((100/float64(
-						len(tmpRes[outVal].ProbableInputs)))*100) / 100
+					tmpRes[out].uniqueInputs[in]++
+					tmpRes[out].LinkingProbability = getProbability(
+						tmpRes[out].ProbableInputs, out, isManyToMany)
+					tmpRes[out].PercentOfInputs = 100
+					if isManyToMany {
+						percent := math.Round((out/outSum.Amount)*1000000) / 10000
+						tmpRes[out].PercentOfInputs = roundOff(
+							percent * float64(outSum.Count))
+					}
 				}
 			}
 		}
@@ -351,4 +413,20 @@ func TxFundsFlowProbability(rawData []*AllFundsFlows) []*FlowProbability {
 	}
 
 	return data
+}
+
+// getProbability calculates the probability from all the probable inputs
+// available.
+func getProbability(data []*Details, outVal float64, isManyToMany bool) float64 {
+	var itemsCount int
+	for _, d := range data {
+		if d.Amount >= outVal {
+			itemsCount += d.Count
+		}
+	}
+
+	if itemsCount == 0 || isManyToMany {
+		return 100.0
+	}
+	return math.Round((100/float64(itemsCount))*10000) / 10000
 }

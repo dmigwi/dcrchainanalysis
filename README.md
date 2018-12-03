@@ -20,4 +20,10 @@ Check the [AppData folder](https://docs.decred.org/getting-started/startup-basic
     cp ./sample-dcrchainalyser.conf {appData-folder}/dcrchainalyser.conf
 ```
 - Copy the `rpcuser` and `rpcpass` from `dcrd.conf` in your Dcrd Appdata folder into `dcrchainalyser.conf` file as `dcrduser` and `dcrdpass` fields.
+- Mainnet is activated by default if Simnet or Testnet environment is set in the `dcrchainalyser.conf`
+
+
+## Build the Project.
+- `cd` to the root folder with the cloned repository.
+- Run `go build . && ./v1` 
 
