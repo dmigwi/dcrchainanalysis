@@ -131,22 +131,30 @@ func TestTxFundsFlowProbability(t *testing.T) {
 
 	expectedPayload := []*FlowProbability{
 		{
-			OutputAmount:       5035.67279067,
-			Count:              1,
-			ProbableInputs:     []*Details{{Amount: 5076.66042217, Count: 1}},
+			OutputAmount: 5035.67279067,
+			Count:        1,
+			ProbableInputs: []*InputSets{
+				{Set: []*Details{{Amount: 5076.66042217, Count: 1}},
+					PercentOfInputs: 100}},
 			LinkingProbability: 100,
 		},
 		{
-			OutputAmount:       39.96907437,
-			Count:              1,
-			ProbableInputs:     []*Details{{Amount: 39.96949337, Count: 1}},
+			OutputAmount: 39.96907437,
+			Count:        1,
+			ProbableInputs: []*InputSets{
+				{Set: []*Details{{Amount: 39.96949337, Count: 1}},
+					PercentOfInputs: 100}},
 			LinkingProbability: 100,
 		},
 		{
 			OutputAmount: 40.9873785,
 			Count:        2,
-			ProbableInputs: []*Details{{Amount: 40.9873785, Count: 1},
-				{Amount: 5076.66042217, Count: 1}},
+			ProbableInputs: []*InputSets{
+				{Set: []*Details{{Amount: 40.9873785, Count: 1}},
+					PercentOfInputs: 100,
+					Inputs:          []float64{40.9873785}},
+				{Set: []*Details{{Amount: 5076.66042217, Count: 1}},
+					PercentOfInputs: 100}},
 			LinkingProbability: 50,
 		},
 	}
@@ -165,9 +173,11 @@ func TestTxFundsFlowProbability(t *testing.T) {
 		for _, expected := range expectedPayload {
 			for _, returned := range result {
 				if reflect.DeepEqual(expected.ProbableInputs, returned.ProbableInputs) {
-					continue outerLoop
+					break outerLoop
 				}
+
 			}
+
 			// If loop execution ever gets here then the test has already failed
 			t.Fatal("expected the returned payload to be equal to" +
 				" the returned payload but it wasn't")

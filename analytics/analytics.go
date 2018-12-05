@@ -51,14 +51,20 @@ type Details struct {
 	Count  int
 }
 
+// InputSets groups probable inputs into sets each with its own percent of input value.
+type InputSets struct {
+	Set             []*Details
+	PercentOfInputs float64
+	Inputs          []float64
+}
+
 // FlowProbability defines the final transaction funds flow data that includes
 // the output tx funds flow probability.
 type FlowProbability struct {
 	OutputAmount       float64
 	Count              int
 	LinkingProbability float64
-	PercentOfInputs    float64
-	ProbableInputs     []*Details
+	ProbableInputs     []*InputSets
 	uniqueInputs       map[float64]int
 }
 
@@ -228,6 +234,9 @@ func TransactionFundsFlow(tx *datatypes.Transaction) ([]*AllFundsFlows, []float6
 
 			// append all the matched solutions
 			if sumFees/target > 0.99 && len(inputCopy) == 0 && len(outputCopy) == 0 {
+				// split the funds flow buckets into their most granular buckets.
+				tmp = splitFundsFlow(tmp)
+
 				// If current solution has too few buckets ignore it.
 				if len(tmp) >= maxBucketsCount {
 					maxBucketsCount = len(tmp)
@@ -300,6 +309,64 @@ func (f *AllFundsFlows) equals(item *AllFundsFlows) bool {
 	return false
 }
 
+// splitFundsFlow breaks down the buckets into their most granular form using one
+// of the buckets which is a duplicate in the combined bucket. Because of
+// computational power limitations the GenerateCombinations doesn't produces
+// duplicate combinations unless the combination length r is 1. Since possible
+// combinations are greatly reduced by the time this function is invoked its
+// safer to do the bucket spliting here than in the GenerateCombinations function.
+func splitFundsFlow(combined []*TxFundsFlow) []*TxFundsFlow {
+	var newData = make([]*TxFundsFlow, 0)
+	for ind2 := 0; ind2 < len(combined); ind2++ {
+		b2 := combined[ind2]
+
+		for ind1 := 0; ind1 < len(combined); ind1++ {
+			b1 := combined[ind1]
+			if (len(b2.Inputs.Values) > len(b1.Inputs.Values)) &&
+				(len(b2.MatchedOutputs.Values) > len(b1.MatchedOutputs.Values)) {
+				inputsDiff, inputSum := arrayDiff(
+					b1.Inputs.Values, b2.Inputs.Values)
+				outputDiff, outputSum := arrayDiff(
+					b1.MatchedOutputs.Values, b2.MatchedOutputs.Values)
+
+				if roundOff(inputSum-outputSum+b1.Fee) == b2.Fee {
+					newData = append(newData, b1, &TxFundsFlow{
+						Fee:            roundOff(inputSum - outputSum),
+						Inputs:         &GroupedValues{Sum: inputSum, Values: inputsDiff},
+						MatchedOutputs: &GroupedValues{Sum: outputSum, Values: outputDiff},
+					})
+
+					combined = append(combined[:ind2], combined[ind2+1:]...)
+					break
+				}
+			}
+		}
+	}
+	if len(newData) > 0 {
+		return append(combined, newData...)
+	}
+	return combined
+}
+
+// arrayDiff returns the difference between arr2 and arr1 i.e. arr2 - arr1.
+func arrayDiff(arr1, arr2 []float64) (tmp []float64, sum float64) {
+	tmp = make([]float64, len(arr2))
+	copy(tmp, arr2)
+
+	for _, val := range arr1 {
+		for i, val2 := range tmp {
+			if val == val2 && i < len(tmp) {
+				tmp = append(tmp[:i], tmp[i+1:]...)
+				break
+			}
+		}
+	}
+	for _, entry := range tmp {
+		sum += entry
+	}
+	return tmp, roundOff(sum)
+}
+
 // getTotalCombinations fetches all the possible combinations of the source
 // array except when the elements of the combinations (its length) is equal to the
 // source array length.
@@ -367,11 +434,11 @@ func TxFundsFlowProbability(rawData []*AllFundsFlows,
 
 	tmpRes := make(map[float64]*FlowProbability, 0)
 	for _, res := range totalRes {
-		// isManyToMany checks if the matching bucket has many to many relationship
-		// between inputs and matching outputs. Many to many relationship means that
-		// a specific output cannot be linked with another input in the same bucket
-		// as the source of funds.
-		isManyToMany := len(res.Inputs) > 1 && len(res.MatchingOutputs) > 1
+		// isManyToMany checks if the matching bucket has many to many or many to
+		// one relationship between inputs and matching outputs. Many inputs in
+		// bucket means that specific output(s) cannot be easily linked directly
+		// to matching input in the same bucket as the source of funds.
+		isManyToMany := len(res.Inputs) > 1
 
 		for out, outSum := range res.MatchingOutputs {
 			if tmpRes[out] == nil {
@@ -382,26 +449,57 @@ func TxFundsFlowProbability(rawData []*AllFundsFlows,
 
 			tmpRes[out].OutputAmount = out
 			tmpRes[out].Count = allOutputs[out]
-			for in := range res.Inputs {
-				_, ok := tmpRes[out].uniqueInputs[in]
-				if !ok {
-					tmpRes[out].ProbableInputs = append(
-						tmpRes[out].ProbableInputs, &Details{
-							Amount: in,
-							Count:  allInputs[in],
-						})
 
-					tmpRes[out].uniqueInputs[in]++
-					tmpRes[out].LinkingProbability = getProbability(
-						tmpRes[out].ProbableInputs, out, isManyToMany)
-					tmpRes[out].PercentOfInputs = 100
-					if isManyToMany {
-						percent := math.Round((out/outSum.Amount)*1000000) / 10000
-						tmpRes[out].PercentOfInputs = roundOff(
-							percent * float64(outSum.Count))
+			// if Many to many relationship exists assign all the inputs a single set.
+			if isManyToMany {
+				setDetails := make([]*Details, len(res.Inputs))
+				index := 0
+				var isDuplicate bool
+				inputsArr := make([]float64, len(res.Inputs))
+				percent := math.Round((out/outSum.Amount)*1000000) / 10000 * float64(outSum.Count)
+
+				for in := range res.Inputs {
+					setDetails[index] = &Details{Amount: in, Count: allInputs[in]}
+					inputsArr[index] = in
+					index++
+				}
+
+				sort.Float64s(inputsArr)
+
+				// Check for duplicates
+				for _, set := range tmpRes[out].ProbableInputs {
+					if reflect.DeepEqual(set.Inputs, inputsArr) &&
+						set.PercentOfInputs == roundOff(percent) {
+						isDuplicate = true
+						break
 					}
 				}
+
+				if !isDuplicate {
+					tmpRes[out].ProbableInputs = append(
+						tmpRes[out].ProbableInputs,
+						&InputSets{Set: setDetails, PercentOfInputs: roundOff(percent),
+							Inputs: inputsArr},
+					)
+				}
+
+			} else {
+				for in := range res.Inputs {
+					_, ok := tmpRes[out].uniqueInputs[in]
+					if !ok {
+						details := []*Details{&Details{Amount: in, Count: allInputs[in]}}
+						tmpRes[out].ProbableInputs = append(
+							tmpRes[out].ProbableInputs,
+							&InputSets{Set: details, PercentOfInputs: 100},
+						)
+
+						tmpRes[out].uniqueInputs[in]++
+					}
+				}
+
 			}
+			rawVal := float64(len(tmpRes[out].ProbableInputs))
+			tmpRes[out].LinkingProbability = math.Round((1/rawVal)*10000) / 100
 		}
 	}
 
@@ -413,20 +511,4 @@ func TxFundsFlowProbability(rawData []*AllFundsFlows,
 	}
 
 	return data
-}
-
-// getProbability calculates the probability from all the probable inputs
-// available.
-func getProbability(data []*Details, outVal float64, isManyToMany bool) float64 {
-	var itemsCount int
-	for _, d := range data {
-		if d.Amount >= outVal {
-			itemsCount += d.Count
-		}
-	}
-
-	if itemsCount == 0 || isManyToMany {
-		return 100.0
-	}
-	return math.Round((100/float64(itemsCount))*10000) / 10000
 }
