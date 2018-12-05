@@ -21,6 +21,7 @@ Check the [AppData folder](https://docs.decred.org/getting-started/startup-basic
 ```
 - Copy the `rpcuser` and `rpcpass` from `dcrd.conf` in your Dcrd Appdata folder into `dcrchainalyser.conf` file as `dcrduser` and `dcrdpass` fields.
 - `Mainnet` is activated by default if `Simnet` or `Testnet` environments are not set in the `dcrchainalyser.conf`
+- For Chain Analysis Tool to run effectively with dcrd, `txindex=1` flag should be set in the dcrd.conf located at the appdata folder.
 
 
 ## Build the Project.

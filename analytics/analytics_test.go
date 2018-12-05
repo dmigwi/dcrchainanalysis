@@ -151,8 +151,7 @@ func TestTxFundsFlowProbability(t *testing.T) {
 			Count:        2,
 			ProbableInputs: []*InputSets{
 				{Set: []*Details{{Amount: 40.9873785, Count: 1}},
-					PercentOfInputs: 100,
-					Inputs:          []float64{40.9873785}},
+					PercentOfInputs: 100},
 				{Set: []*Details{{Amount: 5076.66042217, Count: 1}},
 					PercentOfInputs: 100}},
 			LinkingProbability: 50,

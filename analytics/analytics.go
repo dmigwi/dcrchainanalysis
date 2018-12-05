@@ -55,7 +55,7 @@ type Details struct {
 type InputSets struct {
 	Set             []*Details
 	PercentOfInputs float64
-	Inputs          []float64
+	inputs          []float64
 }
 
 // FlowProbability defines the final transaction funds flow data that includes
@@ -468,7 +468,7 @@ func TxFundsFlowProbability(rawData []*AllFundsFlows,
 
 				// Check for duplicates
 				for _, set := range tmpRes[out].ProbableInputs {
-					if reflect.DeepEqual(set.Inputs, inputsArr) &&
+					if reflect.DeepEqual(set.inputs, inputsArr) &&
 						set.PercentOfInputs == roundOff(percent) {
 						isDuplicate = true
 						break
@@ -479,7 +479,7 @@ func TxFundsFlowProbability(rawData []*AllFundsFlows,
 					tmpRes[out].ProbableInputs = append(
 						tmpRes[out].ProbableInputs,
 						&InputSets{Set: setDetails, PercentOfInputs: roundOff(percent),
-							Inputs: inputsArr},
+							inputs: inputsArr},
 					)
 				}
 
