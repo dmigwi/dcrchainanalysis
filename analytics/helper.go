@@ -5,7 +5,6 @@ package analytics
 
 import (
 	"math"
-	"sort"
 )
 
 const (
@@ -47,79 +46,78 @@ func GroupDuplicates(list []float64) map[float64]*GroupedValues {
 	d := make(map[float64]*GroupedValues, 0)
 	sum := 0.0
 
-	for _, val := range list {
-		s := d[val]
+	for ind := range list {
+		s := d[list[ind]]
 		if s == nil {
 			s = &GroupedValues{}
 		}
 		sum = s.Sum
-		sum += val
+		sum += list[ind]
 		s.Sum = roundOff(sum)
-		s.Values = append(s.Values[:], val)
-		d[val] = s
+		s.Values = append(s.Values, list[ind])
+		d[list[ind]] = s
 	}
 	return d
 }
 
+// appendDupsCount adds a duplicates count value to each element is the array
+func appendDupsCount(list []float64) (details []*Details) {
+	gD := GroupDuplicates(list)
+	details = make([]*Details, len(list))
+
+	for index := range list {
+		val := list[index]
+		details[index] = &Details{
+			Amount: val,
+			Count:  len(gD[val].Values),
+		}
+	}
+
+	// Add the doping element when the last entry in the slice is duplicate.
+	if details[len(list)-1].Count > 1 {
+		details = append(details, &Details{Amount: dopingElement, Count: 1})
+	}
+
+	return
+}
+
 // GenerateCombinations generates all the combinations for the array with the
 // subset r count provided.
-func GenerateCombinations(sourceArray []float64, r int64) []*GroupedValues {
-	var newArrayIndex, oldArrayIndex, prevNewArrInd int64
+func GenerateCombinations(sourceArray []*Details, r int64) []*GroupedValues {
 	output := make(chan []float64)
 
-	// Check if the slice is sorted.
-	if !sort.Float64sAreSorted(sourceArray) {
-		log.Warnf("Source array is not sorted. Total combinations maybe inaccurate.")
-	}
+	go func(newSource []*Details, rVal int64, outputChan chan<- []float64) {
+		var newArrayIndex, oldArrayIndex int64
+		data := make([]float64, r)
 
-	gD := GroupDuplicates(sourceArray)
-
-	dups := make(map[float64]int, 0)
-	// To increase the speed of iterative access to dups map contents
-	// delete all entries without duplicates.
-	for key, val := range gD {
-		if len(val.Values) > 1 {
-			dups[key] = len(val.Values)
-		}
-	}
-
-	// Add the dope element when the last entry in the source slice is duplicate.
-	lastEntry := sourceArray[len(sourceArray)-1]
-	if _, ok := dups[lastEntry]; ok {
-		sourceArray = append(sourceArray, dopingElement)
-	}
-
-	go func() {
-		combinatorics(sourceArray, r, newArrayIndex, oldArrayIndex,
-			prevNewArrInd, make([]float64, r, r), output, dups)
+		combinatorics(newSource, rVal, newArrayIndex, oldArrayIndex, data, outputChan)
 		close(output)
-	}()
+	}(sourceArray, r, output)
 
-	res := make([]*GroupedValues, 0)
+	result := make([]*GroupedValues, 0)
 
 	for elem := range output {
-		v := &GroupedValues{Values: elem}
-		sum := 0.0
-		for _, val := range elem {
-			sum += val
-			v.Sum = roundOff(sum)
+		var sum float64
+		for i := range elem {
+			sum += elem[i]
 		}
-
-		res = append(res, v)
+		result = append(result, &GroupedValues{
+			Values: elem,
+			Sum:    roundOff(sum),
+		})
 	}
 
-	return res
+	return result
 }
 
 // combinatorics is a recusive function that generates all the combinations C of
 // subset r values from a set of n values. i.e nCr = n-1 C r-1 + n-1 C
-func combinatorics(source []float64, r, newArrInd, sourceArrInd, prevNewArrInd int64,
-	data []float64, output chan<- []float64, dups map[float64]int) {
-	if newArrInd == r && data[len(data)-1] != dopingElement {
-		tmp := make([]float64, len(data), len(data))
+func combinatorics(source []*Details, r, newArrInd, sourceArrInd int64,
+	data []float64, output chan<- []float64) {
+	if newArrInd == r && data[r-1] != dopingElement {
+		var tmp = make([]float64, r)
 		copy(tmp, data)
 		output <- tmp
-		tmp = nil
 		return
 	}
 
@@ -129,32 +127,26 @@ func combinatorics(source []float64, r, newArrInd, sourceArrInd, prevNewArrInd i
 		return
 	}
 
-	count := 1
-	for i := 0; ; {
-		// when r = 1 keep all the duplicates
-		if r == 1 {
-			break
-		}
-
-		if source[sourceArrInd] == data[newArrInd] {
+	// when r = 1 keep all the duplicates
+	for i := 0; r > 1; {
+		if data[newArrInd] == source[sourceArrInd].Amount {
 			v := sourceArrInd + 1
 			if v < int64(len(source)) {
 				sourceArrInd = v
 			}
 		}
 
-		count = dups[source[sourceArrInd]]
-		if i >= count {
+		if i >= source[sourceArrInd].Count {
 			break
 		}
+
 		i++
 	}
 
-	data[newArrInd] = source[sourceArrInd]
-	prevNewArrInd = newArrInd
+	data[newArrInd] = source[sourceArrInd].Amount
 
-	combinatorics(source, r, newArrInd+1, sourceArrInd+1, prevNewArrInd, data, output, dups)
-	combinatorics(source, r, newArrInd, sourceArrInd+1, prevNewArrInd, data, output, dups)
+	combinatorics(source, r, newArrInd+1, sourceArrInd+1, data, output)
+	combinatorics(source, r, newArrInd, sourceArrInd+1, data, output)
 }
 
 // ExtractSums retrieves all the sum values from the input map into a slice

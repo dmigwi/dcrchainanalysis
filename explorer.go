@@ -93,12 +93,12 @@ func (exp *explorer) TxProbabilityHandler(w http.ResponseWriter, r *http.Request
 
 // analyzeTx fetches all the possible solutions available for the provided transaction.
 func (exp *explorer) analyzeTx(transactionX string) ([]*analytics.AllFundsFlows,
-	[]float64, []float64, error) {
+	[]*analytics.Details, []*analytics.Details, error) {
 	log.Infof("Fetching transaction %s", transactionX)
 
 	txData, err := rpcutils.GetTransactionVerboseByID(exp.Client, transactionX)
 	if err != nil {
-		return nil, []float64{}, []float64{},
+		return nil, nil, nil,
 			fmt.Errorf("failed to fetch transaction %s", transactionX)
 	}
 

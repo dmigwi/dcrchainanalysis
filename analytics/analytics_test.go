@@ -159,8 +159,11 @@ func TestTxFundsFlowProbability(t *testing.T) {
 	}
 
 	t.Run("Test_#1", func(t *testing.T) {
-		input := []float64{39.96949337, 40.9873785, 5076.66042217}
-		output := []float64{39.96907437, 40.9873785, 40.9873785, 5035.67279067}
+		input := []*Details{{Amount: 39.96949337, Count: 1}, {Amount: 40.9873785, Count: 1},
+			{Amount: 5076.66042217, Count: 1}}
+		output := []*Details{{Amount: 39.96907437, Count: 1}, {Amount: 40.9873785, Count: 2},
+			{Amount: 40.9873785, Count: 2}, {Amount: 5035.67279067, Count: 1}}
+
 		result := TxFundsFlowProbability(txTestData, input, output)
 
 		if len(result) != len(expectedPayload) {

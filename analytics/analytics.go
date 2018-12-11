@@ -69,22 +69,28 @@ type FlowProbability struct {
 }
 
 // extractAmounts retrieves the transaction input(s) and output(s) and returns
-// sorted slices are sort.
-func extractAmounts(data *datatypes.Transaction) (inputs, outputs []float64) {
-	inputs = make([]float64, data.NumInpoint, data.NumInpoint)
-	for i, entry := range data.Inpoints {
-		inputs[i] = entry.ValueIn
+// sorted slices are sort. It appends the amount count to the source slice.
+func extractAmounts(data *datatypes.Transaction) (inputs, outputs []*Details) {
+	rawInputs := make([]float64, data.NumInpoint)
+	for i := range data.Inpoints {
+		rawInputs[i] = data.Inpoints[i].ValueIn
 	}
 
-	outputs = make([]float64, data.NumOutpoint, data.NumOutpoint)
-	for i, entry := range data.Outpoints {
-		outputs[i] = entry.Value
+	rawOutputs := make([]float64, data.NumOutpoint)
+	for i := range data.Outpoints {
+		rawOutputs[i] = data.Outpoints[i].Value
 	}
 
-	sort.Float64s(inputs)
-	sort.Float64s(outputs)
+	sort.Float64s(rawInputs)
+	sort.Float64s(rawOutputs)
 
-	log.Debugf("The transaction has %d inputs and %d outputs amounts repectively",
+	// Append the amounts count to the  source input slice.
+	inputs = appendDupsCount(rawInputs)
+
+	// Append the amounts count to the  source output slice.
+	outputs = appendDupsCount(rawOutputs)
+
+	log.Debugf("The transaction has %d inputs and %d outputs amounts respectively",
 		len(inputs), len(outputs))
 
 	return
@@ -92,7 +98,7 @@ func extractAmounts(data *datatypes.Transaction) (inputs, outputs []float64) {
 
 // TransactionFundsFlow calculates the funds flow between a set of inputs and
 // their corresponding set of outputs for the provided transaction data.
-func TransactionFundsFlow(tx *datatypes.Transaction) ([]*AllFundsFlows, []float64, []float64, error) {
+func TransactionFundsFlow(tx *datatypes.Transaction) ([]*AllFundsFlows, []*Details, []*Details, error) {
 	// Retrieve the inputs and outputs from the transaction's data.
 	inputs, outputs := extractAmounts(tx)
 	if len(inputs) == 0 || len(outputs) == 0 {
@@ -105,6 +111,15 @@ func TransactionFundsFlow(tx *datatypes.Transaction) ([]*AllFundsFlows, []float6
 	inputCombinations := getTotalCombinations(inputs, inpointData)
 	outputCombinations := getTotalCombinations(outputs, outpointData)
 
+	// drop doping element entry if it exists.
+	if inputs[len(inputs)-1].Amount == dopingElement {
+		inputs = inputs[:len(inputs)-1]
+	}
+
+	if outputs[len(outputs)-1].Amount == dopingElement {
+		outputs = outputs[:len(outputs)-1]
+	}
+
 	log.Info("Adding the outputs sums combination list to the binary tree.")
 
 	defBinaryTree := new(Node)
@@ -116,15 +131,14 @@ func TransactionFundsFlow(tx *datatypes.Transaction) ([]*AllFundsFlows, []float6
 	log.Info("Searching for matching sums between inputs and outputs amounts.")
 	var matchedSum []*TxFundsFlow
 
-	for _, in := range inputCombinations {
-		marchedArr := defBinaryTree.FindX(in, tx.Fees)
+	for in := range inputCombinations {
+		marchedArr := defBinaryTree.FindX(inputCombinations[in], tx.Fees)
 		if len(marchedArr) != 0 {
 			matchedSum = append(matchedSum, marchedArr...)
 		}
 	}
 
 	var maxBucketsCount int
-	count := 1 // Solutions count
 	target := tx.Fees
 	sol := make(map[int][]*AllFundsFlows, 0)
 
@@ -134,12 +148,16 @@ func TransactionFundsFlow(tx *datatypes.Transaction) ([]*AllFundsFlows, []float6
 		var sumFees float64
 		var tmp []*TxFundsFlow
 
-		inputCopy := make([]float64, len(inputs), len(inputs))
-		outputCopy := make([]float64, len(outputs), len(outputs))
+		inputCopy := make([]*Details, len(inputs))
+		outputCopy := make([]*Details, len(outputs))
 
 		copy(inputCopy, inputs)
 		copy(outputCopy, outputs)
 		log.Trace(" \n ")
+
+		// use the descending order to rearrange the slice because the needed results
+		// are mostly at the end of the matchedSum array.
+		index = len(matchedSum) - index
 
 		// Reorder the matchedSum slice by changing its start to end value
 		// while maintaining the original slice items following order. A linked
@@ -150,8 +168,8 @@ func TransactionFundsFlow(tx *datatypes.Transaction) ([]*AllFundsFlows, []float6
 			if val.Fee <= roundOff(target-sumFees) {
 				var totalIn, totalOut int
 
-				inCopy := make([]float64, len(inputCopy), len(inputCopy))
-				outCopy := make([]float64, len(outputCopy), len(outputCopy))
+				inCopy := make([]*Details, len(inputCopy))
+				outCopy := make([]*Details, len(outputCopy))
 
 				copy(inCopy, inputCopy)
 				copy(outCopy, outputCopy)
@@ -164,8 +182,8 @@ func TransactionFundsFlow(tx *datatypes.Transaction) ([]*AllFundsFlows, []float6
 
 				for _, entry := range val.Inputs.Values {
 				inputCopyLoop:
-					for i, in := range inputCopy {
-						if entry == in {
+					for i := range inputCopy {
+						if entry == inputCopy[i].Amount {
 							inputCopy = append(inputCopy[:i], inputCopy[i+1:]...)
 							totalIn++
 							break inputCopyLoop
@@ -179,7 +197,7 @@ func TransactionFundsFlow(tx *datatypes.Transaction) ([]*AllFundsFlows, []float6
 				// inputCopy to their earlier version. Only inputCopy that has
 				// modified.
 				if totalIn != len(val.Inputs.Values) {
-					inputCopy = make([]float64, len(inCopy), len(inCopy))
+					inputCopy = make([]*Details, len(inCopy))
 
 					copy(inputCopy, inCopy)
 
@@ -191,8 +209,8 @@ func TransactionFundsFlow(tx *datatypes.Transaction) ([]*AllFundsFlows, []float6
 
 				for _, entry := range val.MatchedOutputs.Values {
 				outCopyLoop:
-					for i, out := range outputCopy {
-						if entry == out {
+					for i := range outputCopy {
+						if entry == outputCopy[i].Amount {
 							outputCopy = append(outputCopy[:i], outputCopy[i+1:]...)
 							totalOut++
 							break outCopyLoop
@@ -205,8 +223,8 @@ func TransactionFundsFlow(tx *datatypes.Transaction) ([]*AllFundsFlows, []float6
 				// If all the outputs were not in the outputCopy array restore
 				// inputCopy and outputCopy to their earlier version.
 				if totalOut != len(val.MatchedOutputs.Values) {
-					inputCopy = make([]float64, len(inCopy), len(inCopy))
-					outputCopy = make([]float64, len(outCopy), len(outCopy))
+					inputCopy = make([]*Details, len(inCopy))
+					outputCopy = make([]*Details, len(outCopy))
 
 					copy(inputCopy, inCopy)
 					copy(outputCopy, outCopy)
@@ -233,7 +251,7 @@ func TransactionFundsFlow(tx *datatypes.Transaction) ([]*AllFundsFlows, []float6
 			}
 
 			// append all the matched solutions
-			if sumFees/target > 0.99 && len(inputCopy) == 0 && len(outputCopy) == 0 {
+			if roundOff(sumFees) == target && len(inputCopy) == 0 && len(outputCopy) == 0 {
 				// split the funds flow buckets into their most granular buckets.
 				tmp = splitFundsFlow(tmp)
 
@@ -242,7 +260,6 @@ func TransactionFundsFlow(tx *datatypes.Transaction) ([]*AllFundsFlows, []float6
 					maxBucketsCount = len(tmp)
 
 					item := &AllFundsFlows{
-						Solution:  count,
 						TotalFees: roundOff(sumFees),
 						FundsFlow: tmp,
 					}
@@ -261,10 +278,8 @@ func TransactionFundsFlow(tx *datatypes.Transaction) ([]*AllFundsFlows, []float6
 
 					if !isDuplicate {
 						sol[len(tmp)] = append(sol[len(tmp)][:], item)
-						count++
 					}
 				}
-				sumFees = 0.0
 			}
 
 			// No input and output matching that will happen if either is empty
@@ -272,6 +287,11 @@ func TransactionFundsFlow(tx *datatypes.Transaction) ([]*AllFundsFlows, []float6
 				break
 			}
 		}
+	}
+
+	// ensures that solutions count starts from 1 always.
+	for i, val := range sol[maxBucketsCount] {
+		val.Solution = i + 1
 	}
 
 	log.Infof("Found %d matching sums between the inputs and outputs",
@@ -287,13 +307,11 @@ func (f *AllFundsFlows) equals(item *AllFundsFlows) bool {
 	for _, bucket := range item.FundsFlow {
 		var isInMatch, isOutMatch bool
 		for _, elem := range f.FundsFlow {
-			if reflect.DeepEqual(bucket.Inputs.Values,
-				elem.Inputs.Values) {
+			if reflect.DeepEqual(bucket.Inputs.Values, elem.Inputs.Values) {
 				isInMatch = true
 			}
 
-			if reflect.DeepEqual(bucket.MatchedOutputs.Values,
-				elem.MatchedOutputs.Values) {
+			if reflect.DeepEqual(bucket.MatchedOutputs.Values, elem.MatchedOutputs.Values) {
 				isOutMatch = true
 			}
 		}
@@ -329,14 +347,13 @@ func splitFundsFlow(combined []*TxFundsFlow) []*TxFundsFlow {
 				outputDiff, outputSum := arrayDiff(
 					b1.MatchedOutputs.Values, b2.MatchedOutputs.Values)
 
-				if roundOff(inputSum-outputSum+b1.Fee) == b2.Fee {
-					newData = append(newData, b1, &TxFundsFlow{
+				if roundOff(inputSum-outputSum+b1.Fee) == b2.Fee && inputSum > 0 && outputSum > 0 {
+					newData = append(newData, b1)
+					combined[ind2] = &TxFundsFlow{
 						Fee:            roundOff(inputSum - outputSum),
 						Inputs:         &GroupedValues{Sum: inputSum, Values: inputsDiff},
 						MatchedOutputs: &GroupedValues{Sum: outputSum, Values: outputDiff},
-					})
-
-					combined = append(combined[:ind2], combined[ind2+1:]...)
+					}
 					break
 				}
 			}
@@ -349,6 +366,7 @@ func splitFundsFlow(combined []*TxFundsFlow) []*TxFundsFlow {
 }
 
 // arrayDiff returns the difference between arr2 and arr1 i.e. arr2 - arr1.
+//
 func arrayDiff(arr1, arr2 []float64) (tmp []float64, sum float64) {
 	tmp = make([]float64, len(arr2))
 	copy(tmp, arr2)
@@ -361,22 +379,37 @@ func arrayDiff(arr1, arr2 []float64) (tmp []float64, sum float64) {
 			}
 		}
 	}
+
+	// if a subset of arr1 was not found in arr2 return empty diff array and
+	// zero sum value.
+	if len(tmp) == len(arr2) {
+		tmp = []float64{}
+		return
+	}
+
 	for _, entry := range tmp {
 		sum += entry
 	}
+
 	return tmp, roundOff(sum)
 }
 
 // getTotalCombinations fetches all the possible combinations of the source
 // array except when the elements of the combinations (its length) is equal to the
 // source array length.
-func getTotalCombinations(sourceArr []float64, p txProperties) (totalCombinations []*GroupedValues) {
+func getTotalCombinations(sourceArr []*Details, p txProperties) (totalCombinations []*GroupedValues) {
 	log.Infof("Calculating %s set sum amount combinations.", p)
 
-	for i := 1; i < len(sourceArr); i++ {
-		combinations := GenerateCombinations(sourceArr, int64(i))
-		totalCombinations = append(totalCombinations, combinations...)
+	totalC := make([]*GroupedValues, 0)
+
+	// Start calculating the largest combinations first so that memory usage keeps
+	// reducing exponentially as the heap size grows.
+	for i := len(sourceArr) - 1; i > 0; i-- {
+		totalC = append(totalC, GenerateCombinations(sourceArr, int64(i))...)
 	}
+
+	totalCombinations = make([]*GroupedValues, len(totalC))
+	copy(totalCombinations, totalC)
 
 	log.Debugf("Found %d %s possible sum combinations", len(totalCombinations), p)
 	return
@@ -385,7 +418,7 @@ func getTotalCombinations(sourceArr []float64, p txProperties) (totalCombination
 // TxFundsFlowProbability obtains the funds flow probability for each output in
 // relation to its possible matching input(s).
 func TxFundsFlowProbability(rawData []*AllFundsFlows,
-	inSourceArr, outSourceArr []float64) []*FlowProbability {
+	inSourceArr, outSourceArr []*Details) []*FlowProbability {
 	totalRes := make([]*RawResults, 0)
 	if len(rawData) == 0 {
 		return nil
@@ -395,33 +428,35 @@ func TxFundsFlowProbability(rawData []*AllFundsFlows,
 
 	allInputs := make(map[float64]int, 0)
 	// inSourceArr contains the original list of input amounts from the tx.
-	for _, val := range inSourceArr {
-		allInputs[val]++
+	for i := range inSourceArr {
+		allInputs[inSourceArr[i].Amount] = inSourceArr[i].Count
 	}
 
 	allOutputs := make(map[float64]int, 0)
 	// outSourceArr contains the original list of output amount from the tx.
-	for _, val := range outSourceArr {
-		allOutputs[val]++
+	for i := range outSourceArr {
+		allOutputs[outSourceArr[i].Amount] = outSourceArr[i].Count
 	}
 
 	for _, entries := range rawData {
-		for _, bucket := range entries.FundsFlow {
+		for index := range entries.FundsFlow {
+			bucket := entries.FundsFlow[index]
 			g := new(RawResults)
 
 			if g.Inputs == nil {
 				g.Inputs = make(map[float64]int, 0)
 			}
 
-			for _, a := range bucket.Inputs.Values {
-				g.Inputs[a]++
+			for inIndex := range bucket.Inputs.Values {
+				g.Inputs[bucket.Inputs.Values[inIndex]]++
 			}
 
 			if g.MatchingOutputs == nil {
 				g.MatchingOutputs = make(map[float64]*Details, 0)
 			}
 
-			for _, d := range bucket.MatchedOutputs.Values {
+			for outIndex := range bucket.MatchedOutputs.Values {
+				d := bucket.MatchedOutputs.Values[outIndex]
 				if g.MatchingOutputs[d] == nil {
 					g.MatchingOutputs[d] = &Details{}
 				}
