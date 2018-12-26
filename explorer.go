@@ -12,7 +12,6 @@ import (
 	"github.com/decred/dcrd/rpcclient"
 	"github.com/gorilla/mux"
 	"github.com/raedahgroup/dcrchainanalysis/v1/analytics"
-	"github.com/raedahgroup/dcrchainanalysis/v1/datatypes"
 	"github.com/raedahgroup/dcrchainanalysis/v1/rpcutils"
 )
 
@@ -93,7 +92,7 @@ func (exp *explorer) TxProbabilityHandler(w http.ResponseWriter, r *http.Request
 
 // analyzeTx fetches all the possible solutions available for the provided transaction.
 func (exp *explorer) analyzeTx(transactionX string) ([]*analytics.AllFundsFlows,
-	[]*analytics.Details, []*analytics.Details, error) {
+	[]float64, []float64, error) {
 	log.Infof("Fetching transaction %s", transactionX)
 
 	txData, err := rpcutils.GetTransactionVerboseByID(exp.Client, transactionX)
@@ -102,9 +101,9 @@ func (exp *explorer) analyzeTx(transactionX string) ([]*analytics.AllFundsFlows,
 			fmt.Errorf("failed to fetch transaction %s", transactionX)
 	}
 
-	tx := datatypes.ExtractRawTxTransaction(txData)
-
-	return analytics.TransactionFundsFlow(tx)
+	return analytics.TransactionFundsFlow(
+		rpcutils.ExtractRawTxTransaction(txData),
+	)
 }
 
 // PprofHandler fetches the correct pprof handler needed.

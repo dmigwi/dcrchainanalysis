@@ -2,3 +2,5 @@
 dcrchainanalysis
 v1
 /code-tests
+*.test
+*.out

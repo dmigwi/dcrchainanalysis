@@ -4,22 +4,9 @@
 package analytics
 
 import (
+	"encoding/json"
 	"math"
 )
-
-const (
-	// dopingElement is a placeholder value that helps guarrantee accuracy in
-	// generating sum combinations with no duplicates when the source slice has
-	// its last element as a duplicate.
-	dopingElement float64 = -1
-)
-
-// GroupedValues clusters together values as duplicates or other grouped values.
-// It holds the total sum and the list of the duplicates/grouped values.
-type GroupedValues struct {
-	Sum    float64   `json:",omitempty"`
-	Values []float64 `json:",omitempty"`
-}
 
 // GeneratePermutations calculates the count of all possible outcomes with n as
 // the whole set of data and r as the expected subset of the various elements to
@@ -42,15 +29,12 @@ func permutation(n, r int64) int64 {
 
 // GroupDuplicates uses a map to group together duplicates where its keys are
 // unique and its value should list all the duplicates.
-func GroupDuplicates(list []float64) map[float64]*GroupedValues {
-	d := make(map[float64]*GroupedValues, 0)
+func GroupDuplicates(list []float64) map[float64]GroupedValues {
+	d := make(map[float64]GroupedValues)
 	sum := 0.0
 
 	for ind := range list {
 		s := d[list[ind]]
-		if s == nil {
-			s = &GroupedValues{}
-		}
 		sum = s.Sum
 		sum += list[ind]
 		s.Sum = roundOff(sum)
@@ -63,19 +47,12 @@ func GroupDuplicates(list []float64) map[float64]*GroupedValues {
 // appendDupsCount adds a duplicates count value to each element is the array
 func appendDupsCount(list []float64) (details []*Details) {
 	gD := GroupDuplicates(list)
-	details = make([]*Details, len(list))
 
-	for index := range list {
-		val := list[index]
-		details[index] = &Details{
+	for _, val := range list {
+		details = append(details, &Details{
 			Amount: val,
 			Count:  len(gD[val].Values),
-		}
-	}
-
-	// Add the doping element when the last entry in the slice is duplicate.
-	if details[len(list)-1].Count > 1 {
-		details = append(details, &Details{Amount: dopingElement, Count: 1})
+		})
 	}
 
 	return
@@ -83,41 +60,28 @@ func appendDupsCount(list []float64) (details []*Details) {
 
 // GenerateCombinations generates all the combinations for the array with the
 // subset r count provided.
-func GenerateCombinations(sourceArray []*Details, r int64) []*GroupedValues {
-	output := make(chan []float64)
+func GenerateCombinations(sourceArray []float64, r int64) []GroupedValues {
+	output := make(chan []GroupedValues)
+	defer close(output)
 
-	go func(newSource []*Details, rVal int64, outputChan chan<- []float64) {
+	go func(newSource []float64, rVal int64, outputChan chan<- []GroupedValues) {
 		var newArrayIndex, oldArrayIndex int64
+		var res []GroupedValues
 		data := make([]float64, r)
 
-		combinatorics(newSource, rVal, newArrayIndex, oldArrayIndex, data, outputChan)
-		close(output)
+		combinatorics(&res, newSource, rVal, newArrayIndex, oldArrayIndex, data)
+		outputChan <- res
 	}(sourceArray, r, output)
 
-	result := make([]*GroupedValues, 0)
-
-	for elem := range output {
-		var sum float64
-		for i := range elem {
-			sum += elem[i]
-		}
-		result = append(result, &GroupedValues{
-			Values: elem,
-			Sum:    roundOff(sum),
-		})
-	}
-
-	return result
+	return <-output
 }
 
 // combinatorics is a recusive function that generates all the combinations C of
 // subset r values from a set of n values. i.e nCr = n-1 C r-1 + n-1 C
-func combinatorics(source []*Details, r, newArrInd, sourceArrInd int64,
-	data []float64, output chan<- []float64) {
+func combinatorics(res *[]GroupedValues, source []float64, r, newArrInd, sourceArrInd int64,
+	data []float64) {
 	if newArrInd == r && data[r-1] != dopingElement {
-		var tmp = make([]float64, r)
-		copy(tmp, data)
-		output <- tmp
+		*res = append(*res, getGroupedValues(data))
 		return
 	}
 
@@ -127,44 +91,64 @@ func combinatorics(source []*Details, r, newArrInd, sourceArrInd int64,
 		return
 	}
 
-	// when r = 1 keep all the duplicates
-	for i := 0; r > 1; {
-		if data[newArrInd] == source[sourceArrInd].Amount {
-			v := sourceArrInd + 1
-			if v < int64(len(source)) {
-				sourceArrInd = v
-			}
-		}
-
-		if i >= source[sourceArrInd].Count {
+	// when r = 1 keep all the duplicates else jump till end of duplicates.
+	for r > 1 {
+		if data[newArrInd] == source[sourceArrInd] &&
+			(sourceArrInd+1) < int64(len(source)) {
+			sourceArrInd++
+		} else {
 			break
 		}
 
-		i++
+		if sourceArrInd == int64(len(source)) ||
+			source[sourceArrInd-1] != source[sourceArrInd] {
+			break
+		}
 	}
 
-	data[newArrInd] = source[sourceArrInd].Amount
+	data[newArrInd] = source[sourceArrInd]
 
-	combinatorics(source, r, newArrInd+1, sourceArrInd+1, data, output)
-	combinatorics(source, r, newArrInd, sourceArrInd+1, data, output)
-}
-
-// ExtractSums retrieves all the sum values from the input map into a slice
-// after all the duplicates were summed up together.
-func ExtractSums(val map[float64]*GroupedValues) ([]float64, map[float64][]float64) {
-	sums := make([]float64, len(val), len(val))
-	sumsToUniqueVals := make(map[float64][]float64, len(val))
-	i := 0
-	for _, val := range val {
-		sums[i] = val.Sum
-		sumsToUniqueVals[val.Sum] = val.Values
-		i++
-	}
-
-	return sums, sumsToUniqueVals
+	combinatorics(res, source, r, newArrInd+1, sourceArrInd+1, data)
+	combinatorics(res, source, r, newArrInd, sourceArrInd+1, data)
 }
 
 // rounds off the float value to a value with eight decimals places.
 func roundOff(item float64) float64 {
 	return math.Round(item*10e8) / 10e8
+}
+
+// isEqual is a slice equality check function. reflect.DeepEquals is the most
+// accurate when checking the slice equality but has a lot of overheads which
+// includes but not limited to making unnecessary allocations.
+func isEqual(a, b []float64) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// MarshalJSON is the default stringer method for the Details pointer.
+func (d *Details) String() string {
+	s, err := json.Marshal(d)
+	if err != nil {
+		return "error found."
+	}
+	return string(s)
+}
+
+// getGroupedValues converts a given slice into a GroupedValues object.
+func getGroupedValues(data []float64) GroupedValues {
+	var sum float64
+	for i := range data {
+		sum += data[i]
+	}
+	return GroupedValues{
+		Sum:    roundOff(sum),
+		Values: append([]float64{}, data...),
+	}
 }

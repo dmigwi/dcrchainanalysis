@@ -5,21 +5,12 @@ package analytics
 
 import (
 	"errors"
-	"sync"
 )
-
-// Node defines the basic unit of a binary tree. It has two children.
-type Node struct {
-	sync.RWMutex
-	Left  *Node          `json:",omitempty"`
-	Value *GroupedValues `json:",omitempty"`
-	Right *Node          `json:",omitempty"`
-}
 
 // Insert appends every element in the source array into the binary tree with
 // the first sourceArray element being made the root node. The sourceArray
 // entries sum is used to determine which node to assign its data.
-func (n *Node) Insert(sourceArray []*GroupedValues) error {
+func (n *Node) Insert(sourceArray []GroupedValues) error {
 	if n == nil {
 		return errors.New("nil node cannot be assigned data")
 	}
@@ -41,7 +32,7 @@ func (n *Node) Insert(sourceArray []*GroupedValues) error {
 
 // insert is a recursive function that make the actual binary tree node add
 // operation.
-func (n *Node) insert(val *GroupedValues) {
+func (n *Node) insert(val GroupedValues) {
 	switch {
 	case val.Sum <= n.Value.Sum:
 		if n.Left == nil {
@@ -62,13 +53,13 @@ func (n *Node) insert(val *GroupedValues) {
 
 // Transverse makes an inorder binary tree traversal returning a slice of all
 // nodes data available.
-func (n *Node) Transverse() []*GroupedValues {
-	var list []*GroupedValues
+func (n *Node) Transverse() []GroupedValues {
+	var list []GroupedValues
 	if n == nil {
 		return list
 	}
 
-	output := make(chan *GroupedValues)
+	output := make(chan GroupedValues)
 
 	n.RLock()
 	defer n.RUnlock()
@@ -87,7 +78,7 @@ func (n *Node) Transverse() []*GroupedValues {
 
 // tranverse is the actual recursive function that walks through the provided
 // binary tree sending out the nodes via a channel in Inorder binary tree traversal.
-func (n *Node) tranverse(output chan<- *GroupedValues) {
+func (n *Node) tranverse(output chan<- GroupedValues) {
 	if n.Left != nil {
 		n.Left.tranverse(output)
 	}
@@ -102,32 +93,27 @@ func (n *Node) tranverse(output chan<- *GroupedValues) {
 // FindX returns all the matching values compared using the sum entry and an
 // empty value if otherwise. Pre order binary tree traversal is used to
 // avoid double matching.
-func (n *Node) FindX(x *GroupedValues, txFee float64) (matchingData []*TxFundsFlow) {
+func (n *Node) FindX(listX []GroupedValues, txFee float64) (matchingData []TxFundsFlow) {
 	if n == nil {
 		return
 	}
 
-	output := make(chan *GroupedValues)
-
-	n.Lock()
-	defer n.Unlock()
+	output := make(chan [2]GroupedValues)
+	n.RLock()
+	defer n.RUnlock()
 
 	go func() {
-		n.findX(x, output, txFee)
+		for i := range listX {
+			n.findX(listX[i], output, txFee)
+		}
 		close(output)
 	}()
 
 	for elem := range output {
-		matchingData = append(matchingData, &TxFundsFlow{
-			Fee: roundOff(x.Sum - elem.Sum),
-			Inputs: &GroupedValues{
-				Sum:    roundOff(x.Sum),
-				Values: x.Values,
-			},
-			MatchedOutputs: &GroupedValues{
-				Sum:    roundOff(elem.Sum),
-				Values: elem.Values,
-			},
+		matchingData = append(matchingData, TxFundsFlow{
+			Fee:            roundOff(elem[0].Sum - elem[1].Sum),
+			Inputs:         elem[0],
+			MatchedOutputs: elem[1],
 		})
 	}
 
@@ -136,17 +122,17 @@ func (n *Node) FindX(x *GroupedValues, txFee float64) (matchingData []*TxFundsFl
 
 // findX checks if a node entry whose comparison values match those in the
 // provided input. If the matching node exists its data is returned.
-func (n *Node) findX(val *GroupedValues, output chan<- *GroupedValues, fee float64) {
+func (n *Node) findX(val GroupedValues, output chan<- [2]GroupedValues, fee float64) {
 	diff := roundOff(val.Sum - n.Value.Sum)
 	if diff >= 0 && diff <= fee {
-		output <- n.Value
+		output <- [2]GroupedValues{val, n.Value}
 	}
 
-	if n.Left != nil {
+	if n.Left != nil && diff < fee {
 		n.Left.findX(val, output, fee)
 	}
 
-	if n.Right != nil {
+	if n.Right != nil && diff > 0 {
 		n.Right.findX(val, output, fee)
 	}
 }

@@ -64,8 +64,8 @@ func main() {
 	server := &http.Server{
 		Handler:      r,
 		Addr:         expl.Params.DCAHost,
-		WriteTimeout: 5 * time.Second,
-		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		ReadTimeout:  30 * time.Second,
 	}
 
 	log.Info("Server running :", expl.Params.DCAHost)

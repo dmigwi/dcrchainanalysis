@@ -3,7 +3,6 @@ package analytics
 import (
 	"encoding/json"
 	"reflect"
-	"sort"
 	"strconv"
 	"testing"
 )
@@ -41,29 +40,29 @@ func TestGeneratePermutations(t *testing.T) {
 func TestGroupDuplicates(t *testing.T) {
 	type testData struct {
 		Input  []float64
-		Output map[float64]*GroupedValues
+		Output map[float64]GroupedValues
 	}
 
 	td := []testData{
 		{
 			Input: []float64{1, 2, 3, 4},
-			Output: map[float64]*GroupedValues{
-				2: &GroupedValues{Sum: 2, Values: []float64{2}},
-				3: &GroupedValues{Sum: 3, Values: []float64{3}},
-				4: &GroupedValues{Sum: 4, Values: []float64{4}},
-				1: &GroupedValues{Sum: 1, Values: []float64{1}},
+			Output: map[float64]GroupedValues{
+				2: GroupedValues{Sum: 2, Values: []float64{2}},
+				3: GroupedValues{Sum: 3, Values: []float64{3}},
+				4: GroupedValues{Sum: 4, Values: []float64{4}},
+				1: GroupedValues{Sum: 1, Values: []float64{1}},
 			},
 		},
 		{
 			Input: []float64{1, 3, 5, 7, 8, 1, 1, 1, 3, 3, 3, 4, 4, 4, 9, 9, 9, 9, 7, 5, 1, 3, 9},
-			Output: map[float64]*GroupedValues{
-				4: &GroupedValues{Sum: 12, Values: []float64{4, 4, 4}},
-				9: &GroupedValues{Sum: 45, Values: []float64{9, 9, 9, 9, 9}},
-				1: &GroupedValues{Sum: 5, Values: []float64{1, 1, 1, 1, 1}},
-				3: &GroupedValues{Sum: 15, Values: []float64{3, 3, 3, 3, 3}},
-				5: &GroupedValues{Sum: 10, Values: []float64{5, 5}},
-				7: &GroupedValues{Sum: 14, Values: []float64{7, 7}},
-				8: &GroupedValues{Sum: 8, Values: []float64{8}},
+			Output: map[float64]GroupedValues{
+				4: GroupedValues{Sum: 12, Values: []float64{4, 4, 4}},
+				9: GroupedValues{Sum: 45, Values: []float64{9, 9, 9, 9, 9}},
+				1: GroupedValues{Sum: 5, Values: []float64{1, 1, 1, 1, 1}},
+				3: GroupedValues{Sum: 15, Values: []float64{3, 3, 3, 3, 3}},
+				5: GroupedValues{Sum: 10, Values: []float64{5, 5}},
+				7: GroupedValues{Sum: 14, Values: []float64{7, 7}},
+				8: GroupedValues{Sum: 8, Values: []float64{8}},
 			},
 		},
 	}
@@ -108,7 +107,6 @@ func TestAppendDupsCount(t *testing.T) {
 				{Amount: 1, Count: 2}, {Amount: 1, Count: 2}, {Amount: 2, Count: 3},
 				{Amount: 2, Count: 3}, {Amount: 2, Count: 3}, {Amount: 3, Count: 1},
 				{Amount: 4, Count: 3}, {Amount: 4, Count: 3}, {Amount: 4, Count: 3},
-				{Amount: -1, Count: 1},
 			},
 		},
 		&testData{
@@ -121,7 +119,7 @@ func TestAppendDupsCount(t *testing.T) {
 				{Amount: 4, Count: 3}, {Amount: 5, Count: 2}, {Amount: 5, Count: 2},
 				{Amount: 7, Count: 2}, {Amount: 7, Count: 2}, {Amount: 8, Count: 1},
 				{Amount: 9, Count: 5}, {Amount: 9, Count: 5}, {Amount: 9, Count: 5},
-				{Amount: 9, Count: 5}, {Amount: 9, Count: 5}, {Amount: -1, Count: 1},
+				{Amount: 9, Count: 5}, {Amount: 9, Count: 5},
 			},
 		},
 	}
@@ -146,19 +144,16 @@ func TestGenerateCombinations(t *testing.T) {
 	t.Parallel()
 
 	type testData struct {
-		TestArray []*Details
+		TestArray []float64
 		R         int64
-		Results   []*GroupedValues
+		Results   []GroupedValues
 	}
 
 	td := []testData{
 		{
-			TestArray: []*Details{
-				{Amount: 1, Count: 1}, {Amount: 2, Count: 1}, {Amount: 3, Count: 1},
-				{Amount: 4, Count: 1},
-			},
-			R: 2,
-			Results: []*GroupedValues{
+			TestArray: []float64{1, 2, 3, 4},
+			R:         2,
+			Results: []GroupedValues{
 				{Sum: 3, Values: []float64{1, 2}},
 				{Sum: 4, Values: []float64{1, 3}},
 				{Sum: 5, Values: []float64{1, 4}},
@@ -168,12 +163,9 @@ func TestGenerateCombinations(t *testing.T) {
 			},
 		},
 		{
-			TestArray: []*Details{
-				{Amount: 1, Count: 2}, {Amount: 1, Count: 2}, {Amount: 2, Count: 1},
-				{Amount: 3, Count: 1},
-			},
-			R: 2,
-			Results: []*GroupedValues{
+			TestArray: []float64{1, 1, 2, 3},
+			R:         2,
+			Results: []GroupedValues{
 				{Sum: 2, Values: []float64{1, 1}},
 				{Sum: 3, Values: []float64{1, 2}},
 				{Sum: 4, Values: []float64{1, 3}},
@@ -181,12 +173,9 @@ func TestGenerateCombinations(t *testing.T) {
 			},
 		},
 		{
-			TestArray: []*Details{
-				{Amount: 1, Count: 1}, {Amount: 2, Count: 2}, {Amount: 2, Count: 2},
-				{Amount: 3, Count: 1},
-			},
-			R: 2,
-			Results: []*GroupedValues{
+			TestArray: []float64{1, 2, 2, 3},
+			R:         2,
+			Results: []GroupedValues{
 				{Sum: 3, Values: []float64{1, 2}},
 				{Sum: 4, Values: []float64{1, 3}},
 				{Sum: 4, Values: []float64{2, 2}},
@@ -194,23 +183,17 @@ func TestGenerateCombinations(t *testing.T) {
 			},
 		},
 		{
-			TestArray: []*Details{
-				{Amount: 1, Count: 1}, {Amount: 2, Count: 3}, {Amount: 2, Count: 3},
-				{Amount: 2, Count: 3}, {Amount: dopingElement, Count: 1},
-			},
-			R: 2,
-			Results: []*GroupedValues{
+			TestArray: []float64{1, 2, 2, 2, dopingElement},
+			R:         2,
+			Results: []GroupedValues{
 				{Sum: 3, Values: []float64{1, 2}},
 				{Sum: 4, Values: []float64{2, 2}},
 			},
 		},
 		{
-			TestArray: []*Details{
-				{Amount: 1, Count: 3}, {Amount: 1, Count: 3}, {Amount: 1, Count: 3},
-				{Amount: 2, Count: 1}, {Amount: 3, Count: 1},
-			},
-			R: 2,
-			Results: []*GroupedValues{
+			TestArray: []float64{1, 1, 1, 2, 3},
+			R:         2,
+			Results: []GroupedValues{
 				{Sum: 2, Values: []float64{1, 1}},
 				{Sum: 3, Values: []float64{1, 2}},
 				{Sum: 4, Values: []float64{1, 3}},
@@ -218,13 +201,9 @@ func TestGenerateCombinations(t *testing.T) {
 			},
 		},
 		{
-			TestArray: []*Details{
-				{Amount: 1, Count: 3}, {Amount: 1, Count: 3}, {Amount: 1, Count: 3},
-				{Amount: 2, Count: 3}, {Amount: 2, Count: 3}, {Amount: 2, Count: 3},
-				{Amount: 3, Count: 1},
-			},
-			R: 2,
-			Results: []*GroupedValues{
+			TestArray: []float64{1, 1, 1, 2, 2, 2, 3},
+			R:         2,
+			Results: []GroupedValues{
 				{Sum: 2, Values: []float64{1, 1}},
 				{Sum: 3, Values: []float64{1, 2}},
 				{Sum: 4, Values: []float64{1, 3}},
@@ -233,13 +212,9 @@ func TestGenerateCombinations(t *testing.T) {
 			},
 		},
 		{
-			TestArray: []*Details{
-				{Amount: 1, Count: 2}, {Amount: 1, Count: 2}, {Amount: 2, Count: 2},
-				{Amount: 2, Count: 2}, {Amount: 3, Count: 2}, {Amount: 3, Count: 2},
-				{Amount: dopingElement, Count: 1},
-			},
-			R: 2,
-			Results: []*GroupedValues{
+			TestArray: []float64{1, 1, 2, 2, 3, 3, dopingElement},
+			R:         2,
+			Results: []GroupedValues{
 				{Sum: 2, Values: []float64{1, 1}},
 				{Sum: 3, Values: []float64{1, 2}},
 				{Sum: 4, Values: []float64{1, 3}},
@@ -249,14 +224,9 @@ func TestGenerateCombinations(t *testing.T) {
 			},
 		},
 		{
-			TestArray: []*Details{
-				{Amount: 1, Count: 2}, {Amount: 1, Count: 2}, {Amount: 2, Count: 3},
-				{Amount: 2, Count: 3}, {Amount: 2, Count: 3}, {Amount: 3, Count: 1},
-				{Amount: 4, Count: 3}, {Amount: 4, Count: 3}, {Amount: 4, Count: 3},
-				{Amount: dopingElement, Count: 1},
-			},
-			R: 2,
-			Results: []*GroupedValues{
+			TestArray: []float64{1, 1, 2, 2, 2, 3, 4, 4, 4, dopingElement},
+			R:         2,
+			Results: []GroupedValues{
 				{Sum: 2, Values: []float64{1, 1}},
 				{Sum: 3, Values: []float64{1, 2}},
 				{Sum: 4, Values: []float64{1, 3}},
@@ -269,13 +239,9 @@ func TestGenerateCombinations(t *testing.T) {
 			},
 		},
 		{
-			TestArray: []*Details{
-				{Amount: 5, Count: 2}, {Amount: 5, Count: 2}, {Amount: 6, Count: 2},
-				{Amount: 6, Count: 2}, {Amount: 7, Count: 2}, {Amount: 7, Count: 2},
-				{Amount: dopingElement, Count: 1},
-			},
-			R: 3,
-			Results: []*GroupedValues{
+			TestArray: []float64{5, 5, 6, 6, 7, 7, dopingElement},
+			R:         3,
+			Results: []GroupedValues{
 				{Sum: 16, Values: []float64{5, 5, 6}},
 				{Sum: 17, Values: []float64{5, 5, 7}},
 				{Sum: 17, Values: []float64{5, 6, 6}},
@@ -286,13 +252,9 @@ func TestGenerateCombinations(t *testing.T) {
 			},
 		},
 		{
-			TestArray: []*Details{
-				{Amount: 5, Count: 2}, {Amount: 5, Count: 2}, {Amount: 6, Count: 2},
-				{Amount: 6, Count: 2}, {Amount: 7, Count: 3}, {Amount: 7, Count: 3},
-				{Amount: 7, Count: 3}, {Amount: dopingElement, Count: 1},
-			},
-			R: 3,
-			Results: []*GroupedValues{
+			TestArray: []float64{5, 5, 6, 6, 7, 7, 7, dopingElement},
+			R:         3,
+			Results: []GroupedValues{
 				{Sum: 16, Values: []float64{5, 5, 6}},
 				{Sum: 17, Values: []float64{5, 5, 7}},
 				{Sum: 17, Values: []float64{5, 6, 6}},
@@ -304,12 +266,9 @@ func TestGenerateCombinations(t *testing.T) {
 			},
 		},
 		{
-			TestArray: []*Details{
-				{Amount: 1, Count: 1}, {Amount: 2, Count: 1}, {Amount: 3, Count: 1},
-				{Amount: 4, Count: 1}, {Amount: 5, Count: 1}, {Amount: 6, Count: 1},
-			},
-			R: 4,
-			Results: []*GroupedValues{
+			TestArray: []float64{1, 2, 3, 4, 5, 6},
+			R:         4,
+			Results: []GroupedValues{
 				{Sum: 10, Values: []float64{1, 2, 3, 4}},
 				{Sum: 11, Values: []float64{1, 2, 3, 5}},
 				{Sum: 12, Values: []float64{1, 2, 3, 6}},
@@ -347,129 +306,95 @@ func TestGenerateCombinations(t *testing.T) {
 	}
 }
 
-// TestExtractSums tests the functionality of TestExtractSums
-func TestExtractSums(t *testing.T) {
+// TestIsEqual tests the functionality of isEqual function.
+func TestIsEqual(t *testing.T) {
 	type testData struct {
-		Input      map[float64]*GroupedValues
-		UniqueVals map[float64][]float64
-		Output     []float64
+		Array1 []float64
+		Array2 []float64
 	}
 
 	td := []testData{
 		{
-			Input: map[float64]*GroupedValues{
-				12.89:  &GroupedValues{Sum: 12.89, Values: []float64{10, 2.89}},
-				332.89: &GroupedValues{Sum: 332.89, Values: []float64{300, 32.89}},
-			},
-			UniqueVals: map[float64][]float64{
-				12.89:  []float64{10, 2.89},
-				332.89: []float64{300, 32.89},
-			},
-			Output: []float64{12.89, 332.89},
+			Array1: []float64{4, 5, 6, 7, 8, 9, 10, 11, 12},
+			Array2: []float64{4, 5, 6, 7, 8, 9, 10, 11, 12},
 		},
 		{
-			Input: map[float64]*GroupedValues{
-				1: &GroupedValues{Sum: 2, Values: []float64{2}},
-				2: &GroupedValues{Sum: 3, Values: []float64{1, 1, 1}},
-				3: &GroupedValues{Sum: 4, Values: []float64{4}},
-				5: &GroupedValues{Sum: 5, Values: []float64{2, 3}},
-				6: &GroupedValues{Sum: 6, Values: []float64{3, 1, 2}},
-			},
-			UniqueVals: map[float64][]float64{
-				2: []float64{2},
-				3: []float64{1, 1, 1},
-				4: []float64{4},
-				5: []float64{2, 3},
-				6: []float64{3, 1, 2},
-			},
-			Output: []float64{2, 3, 4, 5, 6},
+			Array1: []float64{5, 6, 7, 8, 9, 10, 11, 12, 4},
+			Array2: []float64{4, 5, 6, 7, 8, 9, 10, 11, 12},
 		},
 		{
-			Input: map[float64]*GroupedValues{
-				3478.89:  &GroupedValues{Sum: 36723478.8923, Values: []float64{2}},
-				3283.90:  &GroupedValues{Sum: 328374928.90, Values: []float64{2}},
-				5837.89:  &GroupedValues{Sum: 5892374.8, Values: []float64{2}},
-				7847.896: &GroupedValues{Sum: 78347.896, Values: []float64{2}},
-			},
-			UniqueVals: map[float64][]float64{
-				36723478.8923: []float64{2},
-				328374928.90:  []float64{2},
-				5892374.8:     []float64{2},
-				78347.896:     []float64{2},
-			},
-			Output: []float64{78347.896, 5892374.8, 36723478.8923, 328374928.90},
+			Array1: []float64{6, 7, 8, 9, 10, 11, 12, 4, 5},
+			Array2: []float64{7, 8, 9, 10, 11, 12, 4, 5},
+		},
+		{
+			Array1: []float64{7, 8, 9, 10, 11, 12, 4, 5, 6},
+			Array2: []float64{7, 8, 9, 10, 11, 12, 4, 5, 6},
+		},
+		{
+			Array1: []float64{8, 9, 10, 11, 12, 4, 5, 6, 7},
+			Array2: []float64{8, 9, 10, 11, 12, 4, 5, 6, 7},
+		},
+		{
+			Array1: []float64{9, 10, 11, 12, 4, 5, 6, 7, 8},
+			Array2: []float64{9, 10, 11, 12, 4, 5, 6, 7, 8},
+		},
+		{
+			Array1: []float64{10, 11, 12, 4, 5, 6, 7, 8, 9},
+			Array2: []float64{10, 11, 12, 5, 4, 6, 7, 8, 9},
+		},
+		{
+			Array1: []float64{11, 12, 4, 5, 6, 7, 8, 9, 10},
+			Array2: []float64{11, 12, 4, 5, 6, 7, 8, 9, 10},
+		},
+		{
+			Array1: []float64{12, 4, 5, 6, 7, 8, 9, 10, 11},
+			Array2: []float64{12, 4, 5, 6, 7, 8, 9, 10, 11},
 		},
 	}
 
 	for i, data := range td {
-		t.Run("Test_#"+strconv.Itoa(1+i), func(t *testing.T) {
-			res, sumsToVals := ExtractSums(data.Input)
+		t.Run("Test_#"+strconv.Itoa(i+1), func(t *testing.T) {
+			res := isEqual(data.Array1, data.Array2)
+			accurateResult := reflect.DeepEqual(data.Array1, data.Array2)
 
-			// maps alter the original data entry order. Sort is needed to
-			// ensure ascending order is maintained just for comparison purposes.
-			// This sort function wasn't added to ExtractKeys because it will
-			// introduce issues that will negatively affect performance with
-			// no extra gain expected when using a sorted array instead of an
-			// unsorted array on normal system functionality.
-			sort.Float64s(res)
-
-			if !reflect.DeepEqual(res, data.Output) {
-				t.Fatalf("expected the returned slice to be equal to (%v) but found (%v)",
-					data.Output, res)
-			}
-
-			if !reflect.DeepEqual(data.UniqueVals, sumsToVals) {
-				t.Fatalf("expected the returned sums matched to unique values to be (%v) but found (%v)",
-					data.UniqueVals, sumsToVals)
+			if res != accurateResult {
+				t.Fatalf("slice equality check for (%v) and (%v) failed",
+					data.Array1, data.Array2)
 			}
 		})
 	}
 }
 
-// >>>>>>>>> <<<<<<<<<<<
+// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 // Benchmark tests
 
 // benchmarkGenerateCombinations is a GenerateCombinations benchmark test
-func benchmarkGenerateCombinations(arr []*Details, r int64, b *testing.B) {
+func benchmarkGenerateCombinations(arr []float64, r int64, b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		GenerateCombinations(arr, r)
 	}
 }
 
 func BenchmarkGenerateCombinations1(b *testing.B) {
-	arr := []*Details{
-		{Amount: 1, Count: 1}, {Amount: 2, Count: 1}, {Amount: 3, Count: 1},
-		{Amount: 4, Count: 1},
-	}
+	arr := []float64{1, 2, 3, 4}
 	benchmarkGenerateCombinations(arr, 2, b)
 }
 
 func BenchmarkGenerateCombinations2(b *testing.B) {
-	arr := []*Details{
-		{Amount: 1, Count: 2}, {Amount: 1, Count: 2}, {Amount: 2, Count: 3},
-		{Amount: 2, Count: 3}, {Amount: 2, Count: 3}, {Amount: 3, Count: 1},
-		{Amount: 4, Count: 3}, {Amount: 4, Count: 3}, {Amount: 4, Count: 3},
-		{Amount: dopingElement, Count: 1},
-	}
+	arr := []float64{1, 1, 2, 2, 2, 3, 4, 4, 4, dopingElement}
 	benchmarkGenerateCombinations(arr, 2, b)
 }
 
 func BenchmarkGenerateCombinations3(b *testing.B) {
-	arr := []*Details{
-		{Amount: 5, Count: 2}, {Amount: 5, Count: 2}, {Amount: 6, Count: 2},
-		{Amount: 6, Count: 2}, {Amount: 7, Count: 3}, {Amount: 7, Count: 3},
-		{Amount: 7, Count: 3}, {Amount: dopingElement, Count: 1},
-	}
+	arr := []float64{5, 5, 6, 6, 7, 7, 7, dopingElement}
 	benchmarkGenerateCombinations(arr, 3, b)
 }
 
 func BenchmarkGenerateCombinations4(b *testing.B) {
-	arr := []*Details{
-		{Amount: 1, Count: 1}, {Amount: 2, Count: 1}, {Amount: 3, Count: 1},
-		{Amount: 4, Count: 1}, {Amount: 5, Count: 1}, {Amount: 6, Count: 1}}
+	arr := []float64{1, 2, 3, 4, 5, 6}
 	benchmarkGenerateCombinations(arr, 4, b)
 }
 func BenchmarkGenerateCombinations5(b *testing.B) {
-	arr := []*Details{{Amount: 1, Count: 1}, {Amount: 2, Count: 1}, {Amount: 3, Count: 1}}
+	arr := []float64{1, 2, 3}
 	benchmarkGenerateCombinations(arr, 2, b)
 }
