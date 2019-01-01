@@ -6,7 +6,6 @@ package analytics
 import (
 	"errors"
 	"fmt"
-	"math"
 	"sort"
 
 	"github.com/decred/slog"
@@ -203,7 +202,7 @@ func TxFundsFlowProbability(rawData []*AllFundsFlows,
 				index := 0
 				var isDuplicate bool
 				inputsArr := make([]float64, len(res.Inputs))
-				percent := math.Round((out/outSum.Amount)*1000000) / 10000 * float64(outSum.Count)
+				percent := roundOff(out / outSum.Amount)
 
 				for in := range res.Inputs {
 					setDetails[index] = &Details{Amount: in, Count: allInputs[in]}
@@ -216,7 +215,7 @@ func TxFundsFlowProbability(rawData []*AllFundsFlows,
 				// Check for duplicates.
 				for _, set := range tmpRes[out].ProbableInputs {
 					if isEqual(set.inputs, inputsArr) &&
-						set.PercentOfInputs == roundOff(percent) {
+						set.PercentOfInputs == percent {
 						isDuplicate = true
 						break
 					}
@@ -225,7 +224,7 @@ func TxFundsFlowProbability(rawData []*AllFundsFlows,
 				if !isDuplicate {
 					tmpRes[out].ProbableInputs = append(
 						tmpRes[out].ProbableInputs,
-						&InputSets{Set: setDetails, PercentOfInputs: roundOff(percent),
+						&InputSets{Set: setDetails, PercentOfInputs: percent,
 							inputs: inputsArr},
 					)
 				}
@@ -237,7 +236,7 @@ func TxFundsFlowProbability(rawData []*AllFundsFlows,
 						details := []*Details{&Details{Amount: in, Count: allInputs[in]}}
 						tmpRes[out].ProbableInputs = append(
 							tmpRes[out].ProbableInputs,
-							&InputSets{Set: details, PercentOfInputs: 100},
+							&InputSets{Set: details, PercentOfInputs: 1},
 						)
 
 						tmpRes[out].uniqueInputs[in]++
@@ -245,8 +244,17 @@ func TxFundsFlowProbability(rawData []*AllFundsFlows,
 				}
 
 			}
-			rawVal := float64(len(tmpRes[out].ProbableInputs))
-			tmpRes[out].LinkingProbability = math.Round((1/rawVal)*10000) / 100
+
+			var rawVal float64
+			for _, val := range tmpRes[out].ProbableInputs {
+				if len(val.Set) != 1 {
+					rawVal++
+				} else {
+					rawVal += float64(val.Set[0].Count)
+				}
+			}
+
+			tmpRes[out].LinkingProbability = roundOff(1 / rawVal)
 		}
 	}
 
