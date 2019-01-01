@@ -202,7 +202,7 @@ func TxFundsFlowProbability(rawData []*AllFundsFlows,
 				index := 0
 				var isDuplicate bool
 				inputsArr := make([]float64, len(res.Inputs))
-				percent := roundOff(out / outSum.Amount)
+				percent := roundOff((out / outSum.Amount) * float64(outSum.Count))
 
 				for in := range res.Inputs {
 					setDetails[index] = &Details{Amount: in, Count: allInputs[in]}
