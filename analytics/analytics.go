@@ -210,8 +210,12 @@ func TxFundsFlowProbability(rawData []*AllFundsFlows,
 				inputsArr := make([]float64, len(res.Inputs))
 				percent := roundOff((out / outSum.Amount) * float64(outSum.Count))
 
-				for in := range res.Inputs {
-					setDetails[index] = &Details{Amount: in, Count: allInputs[in]}
+				for in, val := range res.Inputs {
+					setDetails[index] = &Details{
+						Amount:         in,
+						PossibleInputs: allInputs[in],
+						Actual:         val,
+					}
 					inputsArr[index] = in
 					index++
 				}
@@ -228,6 +232,8 @@ func TxFundsFlowProbability(rawData []*AllFundsFlows,
 				}
 
 				if !isDuplicate {
+					sort.Sort(byPossibleInputs(setDetails))
+
 					tmpRes[out].ProbableInputs = append(
 						tmpRes[out].ProbableInputs,
 						&InputSets{Set: setDetails, PercentOfInputs: percent,
@@ -237,14 +243,17 @@ func TxFundsFlowProbability(rawData []*AllFundsFlows,
 
 			} else {
 				for in := range res.Inputs {
-					_, ok := tmpRes[out].uniqueInputs[in]
+					actualCount, ok := tmpRes[out].uniqueInputs[in]
 					if !ok {
-						details := []*Details{&Details{Amount: in, Count: allInputs[in]}}
+						details := []*Details{&Details{
+							Amount:         in,
+							PossibleInputs: allInputs[in],
+							Actual:         actualCount + 1,
+						}}
 						tmpRes[out].ProbableInputs = append(
 							tmpRes[out].ProbableInputs,
 							&InputSets{Set: details, PercentOfInputs: 1},
 						)
-
 						tmpRes[out].uniqueInputs[in]++
 					}
 				}
@@ -256,7 +265,7 @@ func TxFundsFlowProbability(rawData []*AllFundsFlows,
 				if len(val.Set) != 1 {
 					rawVal++
 				} else {
-					rawVal += float64(val.Set[0].Count)
+					rawVal += float64(val.Set[0].PossibleInputs)
 				}
 			}
 

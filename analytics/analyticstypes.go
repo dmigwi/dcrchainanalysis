@@ -84,8 +84,10 @@ type rawResults struct {
 
 // Details defines the input or output amount value and its duplicates count.
 type Details struct {
-	Amount float64
-	Count  int
+	Amount         float64
+	Count          int `json:",omitempty"`
+	PossibleInputs int `json:",omitempty"`
+	Actual         int `json:",omitempty"`
 }
 
 // InputSets groups probable inputs into sets each with its own percent of input value.
@@ -103,4 +105,20 @@ type FlowProbability struct {
 	LinkingProbability float64
 	ProbableInputs     []*InputSets
 	uniqueInputs       map[float64]int
+}
+
+// custom sort interface that sorts by Possible inputs in the probability set
+// data.
+type byPossibleInputs []*Details
+
+func (s byPossibleInputs) Len() int {
+	return len(s)
+}
+
+func (s byPossibleInputs) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
+func (s byPossibleInputs) Less(i, j int) bool {
+	return s[i].PossibleInputs > s[j].PossibleInputs
 }

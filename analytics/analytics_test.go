@@ -9,6 +9,7 @@ import (
 )
 
 // TestTransactionFundsFlow tests the functionality of TransactionFundsFlow function.
+// https://testnet.dcrdata.org/tx/ae40333aed99c0b004ef01834444944c471bc72ce869949f6f8ced728941f561
 func TestTransactionFundsFlow(t *testing.T) {
 	txTestData := &rpcutils.Transaction{
 		Fees:        0.000672,
@@ -90,6 +91,7 @@ func TestTransactionFundsFlow(t *testing.T) {
 }
 
 // TestTxFundsFlowProbability tests the functionality of TxFundsFlowProbability function.
+// https://testnet.dcrdata.org/tx/ae40333aed99c0b004ef01834444944c471bc72ce869949f6f8ced728941f561
 func TestTxFundsFlowProbability(t *testing.T) {
 	txTestData := []*AllFundsFlows{
 		{
@@ -138,7 +140,7 @@ func TestTxFundsFlowProbability(t *testing.T) {
 			OutputAmount: 5035.67279067,
 			Count:        1,
 			ProbableInputs: []*InputSets{
-				{Set: []*Details{{Amount: 5076.66042217, Count: 1}},
+				{Set: []*Details{{Amount: 5076.66042217, PossibleInputs: 1, Actual: 1}},
 					PercentOfInputs: 1}},
 			LinkingProbability: 1,
 		},
@@ -146,7 +148,8 @@ func TestTxFundsFlowProbability(t *testing.T) {
 			OutputAmount: 39.96907437,
 			Count:        1,
 			ProbableInputs: []*InputSets{
-				{Set: []*Details{{Amount: 39.96949337, Count: 1}},
+				{Set: []*Details{{
+					Amount: 39.96949337, PossibleInputs: 1, Actual: 1}},
 					PercentOfInputs: 1}},
 			LinkingProbability: 1,
 		},
@@ -154,9 +157,9 @@ func TestTxFundsFlowProbability(t *testing.T) {
 			OutputAmount: 40.9873785,
 			Count:        2,
 			ProbableInputs: []*InputSets{
-				{Set: []*Details{{Amount: 40.9873785, Count: 1}},
+				{Set: []*Details{{Amount: 40.9873785, PossibleInputs: 1, Actual: 1}},
 					PercentOfInputs: 1},
-				{Set: []*Details{{Amount: 5076.66042217, Count: 1}},
+				{Set: []*Details{{Amount: 5076.66042217, PossibleInputs: 1, Actual: 1}},
 					PercentOfInputs: 1}},
 			LinkingProbability: 0.5,
 		},
