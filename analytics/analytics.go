@@ -131,9 +131,9 @@ func TxFundsFlowProbability(rawData []*AllFundsFlows,
 	// Append the amounts count to the raw source outputs slice.
 	outSourceArr := appendDupsCount(rawOutSourceArr)
 
-	var totalRes []*RawResults
+	var totalRes []*rawResults
 
-	log.Debug("Calculating the transaction funds flow probabiblity...")
+	log.Debug("Calculating the transaction funds flow probability...")
 
 	allInputs := make(map[float64]int)
 	// inSourceArr contains the original list of input amounts from the tx.
@@ -150,7 +150,7 @@ func TxFundsFlowProbability(rawData []*AllFundsFlows,
 	for _, entries := range rawData {
 		for index := range entries.FundsFlow {
 			bucket := entries.FundsFlow[index]
-			g := new(RawResults)
+			g := new(rawResults)
 
 			if g.Inputs == nil {
 				g.Inputs = make(map[float64]int)
@@ -186,6 +186,12 @@ func TxFundsFlowProbability(rawData []*AllFundsFlows,
 		isMany := len(res.Inputs) > 1
 
 		for out, outSum := range res.MatchingOutputs {
+			// output amount to be used must be greater than zero. OP_RETURN
+			// scripts do not have any amounts. They hold nulldata transaction type.
+			if out <= 0 {
+				continue
+			}
+
 			if tmpRes[out] == nil {
 				tmpRes[out] = &FlowProbability{
 					uniqueInputs: make(map[float64]int),

@@ -49,13 +49,19 @@ func (exp *explorer) StatusHandler(w http.ResponseWriter, r *http.Request, err e
 func (exp *explorer) AllTxSolutionsHandler(w http.ResponseWriter, r *http.Request) {
 	transactionX := mux.Vars(r)["tx"]
 
-	d, _, _, err := exp.analyzeTx(transactionX)
+	txData, err := analytics.RetrieveTxData(exp.Client, transactionX)
 	if err != nil {
 		exp.StatusHandler(w, r, err)
 		return
 	}
 
-	strData, err := json.Marshal(d)
+	rawTxSolution, _, _, err := analytics.TransactionFundsFlow(txData)
+	if err != nil {
+		exp.StatusHandler(w, r, err)
+		return
+	}
+
+	strData, err := json.Marshal(rawTxSolution)
 	if err != nil {
 		exp.StatusHandler(w, r, fmt.Errorf("error occured: %v", err))
 		return
@@ -71,13 +77,11 @@ func (exp *explorer) AllTxSolutionsHandler(w http.ResponseWriter, r *http.Reques
 func (exp *explorer) TxProbabilityHandler(w http.ResponseWriter, r *http.Request) {
 	transactionX := mux.Vars(r)["tx"]
 
-	d, inArr, outArr, err := exp.analyzeTx(transactionX)
+	solProbability, _, err := analytics.RetrieveTxProbability(exp.Client, transactionX)
 	if err != nil {
 		exp.StatusHandler(w, r, err)
 		return
 	}
-
-	solProbability := analytics.TxFundsFlowProbability(d, inArr, outArr)
 
 	strData, err := json.Marshal(solProbability)
 	if err != nil {
@@ -90,20 +94,25 @@ func (exp *explorer) TxProbabilityHandler(w http.ResponseWriter, r *http.Request
 	w.Write(strData)
 }
 
-// analyzeTx fetches all the possible solutions available for the provided transaction.
-func (exp *explorer) analyzeTx(transactionX string) ([]*analytics.AllFundsFlows,
-	[]float64, []float64, error) {
-	log.Infof("Fetching transaction %s", transactionX)
+// ChainHandler reconstructs the probability solution to create funds flow paths.
+func (exp *explorer) ChainHandler(w http.ResponseWriter, r *http.Request) {
+	transactionX := mux.Vars(r)["tx"]
 
-	txData, err := rpcutils.GetTransactionVerboseByID(exp.Client, transactionX)
+	chain, err := analytics.ChainDiscovery(exp.Client, transactionX)
 	if err != nil {
-		return nil, nil, nil,
-			fmt.Errorf("failed to fetch transaction %s", transactionX)
+		exp.StatusHandler(w, r, err)
+		return
 	}
 
-	return analytics.TransactionFundsFlow(
-		rpcutils.ExtractRawTxTransaction(txData),
-	)
+	strData, err := json.Marshal(chain)
+	if err != nil {
+		exp.StatusHandler(w, r, fmt.Errorf("error occured: %v", err))
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	w.Write(strData)
 }
 
 // PprofHandler fetches the correct pprof handler needed.

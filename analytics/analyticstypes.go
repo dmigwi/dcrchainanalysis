@@ -1,6 +1,8 @@
 package analytics
 
-import "sync"
+import (
+	"sync"
+)
 
 const (
 	// dopingElement is a placeholder value that helps guarrantee accuracy in
@@ -25,6 +27,32 @@ type Node struct {
 	Right *Node         `json:",omitempty"`
 }
 
+// Hub defines the basic unit of a transaction chain analysis graph. The Hub
+// holds details of a funds flow linked between the current TxHash and the
+// other Matched Hub(s). A chain of hubs provide the flow of funds from the current
+// output TxHash to back in time where the source of funds can be identified.
+type Hub struct {
+	// Unique details of the current output.
+	Address     string
+	Amount      float64
+	TxHash      string
+	Probability float64 `json:",omitempty"`
+
+	// setCount helps track which set whose entry has already been processed
+	// in a specific Hub.
+	setCount int
+
+	// Linked funds flow input(s).
+	Matched []Set `json:",omitempty"`
+}
+
+// Set defines a group or individual inputs that can be correctly linked to an
+// output as their source of funds.
+type Set struct {
+	Inputs          []*Hub
+	PercentOfInputs float64
+}
+
 // GroupedValues clusters together values as duplicates or other grouped values.
 // It holds the total sum and the list of the duplicates/grouped values.
 type GroupedValues struct {
@@ -47,9 +75,9 @@ type AllFundsFlows struct {
 	FundsFlow []TxFundsFlow
 }
 
-// RawResults defines some compressed solutions data needed for further processing
+// rawResults defines some compressed solutions data needed for further processing
 // of the transaction funds flow.
-type RawResults struct {
+type rawResults struct {
 	Inputs          map[float64]int
 	MatchingOutputs map[float64]*Details
 }

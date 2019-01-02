@@ -22,15 +22,9 @@ type Block struct {
 // Transaction holds generic block transaction data that contains both the
 // transaction's input or output data.
 type Transaction struct {
-	BlockHash   string
-	BlockHeight int64
-	BlockTime   time.Time
 	TxID        string
 	TxType      int64
 	TxTree      int8
-	TxIndex     uint32
-	Locktime    time.Time
-	Expiry      time.Time
 	Spent       float64
 	Sent        float64
 	Fees        float64
@@ -42,23 +36,15 @@ type Transaction struct {
 
 // TxInput holds an inpoint transaction of a given transaction.
 type TxInput struct {
-	PreviousTxHash  string
-	PreviousTxIndex uint32
-	PreviousTxTree  int8
-	ValueIn         float64
-	BlockHeight     int64
-	BlockIndex      uint32
-	TxHash          string
-	Vout            uint32
+	ValueIn       float64
+	TxHash        string
+	OutputTxIndex uint32
 }
 
 // TxOutput holds an outpoint transaction of a given transaction.
 type TxOutput struct {
-	TxHash       string
-	TxIndex      uint32
-	TxTree       int8
 	Value        float64
-	PkScript     []byte
+	TxIndex      uint32
 	PkScriptData ScriptPubKeyData
 }
 
@@ -66,5 +52,5 @@ type TxOutput struct {
 type ScriptPubKeyData struct {
 	Addresses []string
 	Type      string
-	ReqSigs   uint32
+	ReqSigs   int32
 }

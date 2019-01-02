@@ -52,6 +52,7 @@ func main() {
 	r.HandleFunc("/", expl.HealthHandler)
 	r.HandleFunc("/api/v1/{tx}", expl.TxProbabilityHandler)
 	r.HandleFunc("/api/v1/{tx}/all", expl.AllTxSolutionsHandler)
+	r.HandleFunc("/api/v1/{tx}/chain", expl.ChainHandler)
 
 	if expl.Params.CPUProfile {
 		log.Debug("CPU profiling Activated. Setting up the Profiling.")

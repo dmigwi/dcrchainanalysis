@@ -25,11 +25,11 @@ func extractAmounts(data *rpcutils.Transaction) (inputs, outputs []float64) {
 	sort.Float64s(outputs)
 
 	// Add the doping element when the last entry in the slice is a duplicate.
-	if inputs[len(inputs)-1] == inputs[len(inputs)-2] {
+	if len(inputs) > 1 && inputs[len(inputs)-1] == inputs[len(inputs)-2] {
 		inputs = append(inputs, dopingElement)
 	}
 
-	if outputs[len(outputs)-1] == outputs[len(outputs)-2] {
+	if len(outputs) > 1 && outputs[len(outputs)-1] == outputs[len(outputs)-2] {
 		outputs = append(outputs, dopingElement)
 	}
 

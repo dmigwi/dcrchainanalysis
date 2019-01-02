@@ -4,11 +4,7 @@
 package rpcutils
 
 import (
-	"bytes"
-	"encoding/hex"
-	"fmt"
 	"math"
-	"time"
 
 	"github.com/decred/dcrd/blockchain/stake"
 	"github.com/decred/dcrd/dcrjson"
@@ -37,21 +33,15 @@ func ExtractBlockData(blockData *wire.MsgBlock) *Block {
 // MsgBlock. Only the stake transactions data that is currently extracted.
 func ExtractBlockTransactions(blockData *wire.MsgBlock,
 	activeNet networkconfig.NetworkType) []*Transaction {
-	block := ExtractBlockData(blockData)
+	// block := ExtractBlockData(blockData)
 	sTxs := blockData.STransactions
 	txs := make([]*Transaction, len(sTxs))
 
 	for index, sTx := range sTxs {
 		tx := &Transaction{
-			BlockHash:   block.Hash,
-			BlockHeight: block.Height,
-			BlockTime:   block.Time,
-			TxID:        sTx.TxHash().String(),
-			TxType:      int64(stake.DetermineTxType(sTx)),
-			TxIndex:     uint32(index),
-			TxTree:      wire.TxTreeStake,
-			Locktime:    time.Unix(int64(sTx.LockTime), 0),
-			Expiry:      time.Unix(int64(sTx.Expiry), 0),
+			TxID:   sTx.TxHash().String(),
+			TxType: int64(stake.DetermineTxType(sTx)),
+			TxTree: wire.TxTreeStake,
 		}
 
 		var sent, spent float64
@@ -60,13 +50,8 @@ func ExtractBlockTransactions(blockData *wire.MsgBlock,
 		// Extract the transaction inputs.
 		for v, in := range sTx.TxIn {
 			vins[v] = TxInput{
-				PreviousTxHash:  in.PreviousOutPoint.Hash.String(),
-				PreviousTxIndex: in.PreviousOutPoint.Index,
-				PreviousTxTree:  in.PreviousOutPoint.Tree,
-				BlockHeight:     int64(in.BlockHeight),
-				BlockIndex:      in.BlockIndex,
-				ValueIn:         dcrutil.Amount(in.ValueIn).ToCoin(),
-				TxHash:          tx.TxID,
+				ValueIn: dcrutil.Amount(in.ValueIn).ToCoin(),
+				TxHash:  tx.TxID,
 			}
 
 			spent += dcrutil.Amount(in.ValueIn).ToCoin()
@@ -80,31 +65,26 @@ func ExtractBlockTransactions(blockData *wire.MsgBlock,
 
 		// Extract the transaction outputs.
 		for v, out := range sTx.TxOut {
-			vout := TxOutput{
-				TxHash:   tx.TxID,
-				TxIndex:  tx.TxIndex,
-				TxTree:   tx.TxTree,
-				Value:    dcrutil.Amount(out.Value).ToCoin(),
-				PkScript: out.PkScript,
-			}
-
 			chainParams := activeNet.ChainParams()
-			scriptClass, scriptAddrs, reqSigs, err := txscript.ExtractPkScriptAddrs(
+			scriptClass, scriptAddrs, reqSigs, _ := txscript.ExtractPkScriptAddrs(
 				out.Version, out.PkScript, chainParams)
-			if err != nil && !bytes.Equal(out.PkScript, chainParams.OrganizationPkScript) {
-				fmt.Println(len(out.PkScript), err, hex.EncodeToString(out.PkScript))
-			}
+
 			addys := make([]string, 0, len(scriptAddrs))
 			for ia := range scriptAddrs {
 				addys = append(addys, scriptAddrs[ia].String())
 			}
 
-			vout.PkScriptData.ReqSigs = uint32(reqSigs)
-			vout.PkScriptData.Type = scriptClass.String()
-			vout.PkScriptData.Addresses = addys
+			vouts[v] = TxOutput{
+				Value:   dcrutil.Amount(out.Value).ToCoin(),
+				TxIndex: uint32(v),
+				PkScriptData: ScriptPubKeyData{
+					Addresses: addys,
+					ReqSigs:   int32(reqSigs),
+					Type:      scriptClass.String(),
+				},
+			}
 
-			vouts[v] = vout
-			sent += dcrutil.Amount(out.Value).ToCoin()
+			sent += vouts[v].Value
 		}
 
 		tx.Outpoints = vouts
@@ -120,15 +100,7 @@ func ExtractBlockTransactions(blockData *wire.MsgBlock,
 // ExtractRawTxTransaction extracts the transaction with all its inputs and
 // outputs from a single transaction raw tx data.
 func ExtractRawTxTransaction(rawTx *dcrjson.TxRawResult) *Transaction {
-	tx := &Transaction{
-		BlockHash:   rawTx.BlockHash,
-		BlockHeight: rawTx.BlockHeight,
-		BlockTime:   time.Unix(rawTx.Blocktime, 0),
-		TxIndex:     rawTx.BlockIndex,
-		TxID:        rawTx.Txid,
-		Locktime:    time.Unix(int64(rawTx.LockTime), 0),
-		Expiry:      time.Unix(int64(rawTx.Expiry), 0),
-	}
+	tx := &Transaction{TxID: rawTx.Txid}
 
 	var sent, spent float64
 	vins := make([]TxInput, len(rawTx.Vin))
@@ -136,11 +108,9 @@ func ExtractRawTxTransaction(rawTx *dcrjson.TxRawResult) *Transaction {
 	// Extract inputs
 	for v, in := range rawTx.Vin {
 		vins[v] = TxInput{
-			TxHash:      in.Txid,
-			ValueIn:     in.AmountIn,
-			BlockHeight: int64(in.BlockHeight),
-			BlockIndex:  in.BlockIndex,
-			Vout:        in.Vout,
+			TxHash:        in.Txid,
+			ValueIn:       in.AmountIn,
+			OutputTxIndex: in.Vout,
 		}
 		sent += in.AmountIn
 	}
@@ -156,6 +126,11 @@ func ExtractRawTxTransaction(rawTx *dcrjson.TxRawResult) *Transaction {
 		vouts[v] = TxOutput{
 			Value:   out.Value,
 			TxIndex: out.N,
+			PkScriptData: ScriptPubKeyData{
+				Addresses: out.ScriptPubKey.Addresses,
+				ReqSigs:   out.ScriptPubKey.ReqSigs,
+				Type:      out.ScriptPubKey.Type,
+			},
 		}
 
 		spent += out.Value
