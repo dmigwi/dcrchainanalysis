@@ -156,7 +156,7 @@ func getSet(client *rpcclient.Client, txData *rpcutils.Transaction,
 	copy(inputs, txData.Inpoints)
 
 	for _, item := range matchedInputs.Set {
-		for i := 0; i < item.Count; i++ {
+		for i := 0; i < item.PossibleInputs; i++ {
 			for k, d := range inputs {
 				if d.ValueIn == item.Amount {
 					s := &Hub{Amount: d.ValueIn, TxHash: d.TxHash}
