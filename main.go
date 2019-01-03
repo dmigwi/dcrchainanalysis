@@ -53,6 +53,7 @@ func main() {
 	r.HandleFunc("/api/v1/{tx}", expl.TxProbabilityHandler)
 	r.HandleFunc("/api/v1/{tx}/all", expl.AllTxSolutionsHandler)
 	r.HandleFunc("/api/v1/{tx}/chain", expl.ChainHandler)
+	r.HandleFunc("/api/v1/{tx}/chain/{index:[0-9]+}", expl.ChainPathHandler)
 
 	if expl.Params.CPUProfile {
 		log.Debug("CPU profiling Activated. Setting up the Profiling.")

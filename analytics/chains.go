@@ -45,7 +45,7 @@ func RetrieveTxProbability(client *rpcclient.Client, txHash string) (
 }
 
 // ChainDiscovery returns all the possible chains associated with the tx hash used.
-func ChainDiscovery(client *rpcclient.Client, txHash string) ([]*Hub, error) {
+func ChainDiscovery(client *rpcclient.Client, txHash string, outputIndex ...int) ([]*Hub, error) {
 	tx, err := RetrieveTxData(client, txHash)
 	if err != nil {
 		return nil, err
@@ -55,9 +55,30 @@ func ChainDiscovery(client *rpcclient.Client, txHash string) ([]*Hub, error) {
 	// back in time when the source for each path can be identified.
 	var hubsChain []*Hub
 
+	var outPoints []rpcutils.TxOutput
+
 	var depth = 3
 
-	for _, val := range tx.Outpoints {
+	switch {
+	// OutputIndex has been provided
+	case len(outputIndex) > 0:
+		var txIndex int
+
+		if outputIndex[0] > len(tx.Outpoints) {
+			txIndex = len(tx.Outpoints) - 1
+
+		} else if outputIndex[0] > 0 {
+			txIndex = outputIndex[0]
+		}
+
+		outPoints = append(outPoints, tx.Outpoints[txIndex])
+
+	// OutputIndex has not been provided.
+	case len(outputIndex) == 0:
+		outPoints = tx.Outpoints
+	}
+
+	for _, val := range outPoints {
 		var hubCount int
 		var stackTrace []*Hub
 		count := 1

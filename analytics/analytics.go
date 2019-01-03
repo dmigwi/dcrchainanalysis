@@ -43,8 +43,8 @@ func TransactionFundsFlow(tx *rpcutils.Transaction) ([]*AllFundsFlows,
 		log.Info("Calculating all possible sum combinations for both inputs and outputs")
 	}
 
-	inputCombinations := getTotalCombinations(inputs, inpointData)
-	outputCombinations := getTotalCombinations(outputs, outpointData)
+	inputCombinations := getTotalCombinations(inputs, inpointData, true)
+	outputCombinations := getTotalCombinations(outputs, outpointData, true)
 
 	// drop doping element entry if it exists.
 	{

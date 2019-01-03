@@ -42,15 +42,20 @@ func extractAmounts(data *rpcutils.Transaction) (inputs, outputs []float64) {
 // getTotalCombinations fetches all the possible combinations of the source
 // array except when the elements of the combinations (its length) is equal to the
 // source array length.
-func getTotalCombinations(sourceArr []float64, p txProperties) (totalCombinations []GroupedValues) {
-	log.Infof("Calculating %s set sum amount combinations.", p)
+func getTotalCombinations(sourceArr []float64, p txProperties, isLog ...bool) (
+	totalCombinations []GroupedValues) {
+	if len(isLog) > 0 && isLog[0] {
+		log.Infof("Calculating %s set sum amount combinations.", p)
+	}
 
 	// Start calculating the largest combinations.
 	for i := int64(len(sourceArr) - 1); i > 0; i-- {
 		totalCombinations = append(totalCombinations, GenerateCombinations(sourceArr, i)...)
 	}
 
-	log.Debugf("Found %d %s possible sum combinations", len(totalCombinations), p)
+	if len(isLog) > 0 && isLog[0] {
+		log.Debugf("Found %d %s possible sum combinations", len(totalCombinations), p)
+	}
 	return
 }
 
@@ -212,40 +217,55 @@ func compareBucketIO(bucketEntry, origCopy []float64) (int, bool) {
 	return lastSwapIndex, len(bucketEntry) != count
 }
 
-// splitFundsFlow breaks down the buckets into their most granular form using one
-// of the buckets which is a duplicate in the combined bucket. Because of
-// computational power limitations the GenerateCombinations doesn't produce
+// splitFundsFlow breaks down the buckets into their most granular form. Because of
+// computational power limitations GenerateCombinations doesn't produce granular
 // duplicate combinations unless the combination length r is 1. Since possible
 // combinations are greatly reduced by the time this function is invoked, its
-// cheaper to do the bucket spliting here than in the GenerateCombinations function.
+// cheaper to do the bucket spliting here than in GenerateCombinations function.
 func splitFundsFlow(combined []TxFundsFlow) []TxFundsFlow {
-	var newData []TxFundsFlow
-	for ind2 := 0; ind2 < len(combined); ind2++ {
-		b2 := combined[ind2]
+	var combinations []GroupedValues
 
-		for ind1 := 0; ind1 < len(combined); ind1++ {
-			b1 := combined[ind1]
-			if (len(b2.Inputs.Values) > len(b1.Inputs.Values)) &&
-				(len(b2.MatchedOutputs.Values) > len(b1.MatchedOutputs.Values)) {
-				inputsDiff, inputSum := arrayDiff(
-					b1.Inputs.Values, b2.Inputs.Values)
-				outputDiff, outputSum := arrayDiff(
-					b1.MatchedOutputs.Values, b2.MatchedOutputs.Values)
+mainLoop:
+	for i := 0; i < len(combined); i++ {
+		f := combined[i]
+		if len(f.Inputs.Values) > 1 && len(f.MatchedOutputs.Values) > 1 {
+			combinations = getTotalCombinations(f.Inputs.Values, inpointData)
 
-				if roundOff(inputSum-outputSum+b1.Fee) == b2.Fee && inputSum > 0 && outputSum > 0 {
-					newData = append(newData, b1)
-					combined[ind2] = TxFundsFlow{
-						Fee:            roundOff(inputSum - outputSum),
-						Inputs:         GroupedValues{Sum: inputSum, Values: inputsDiff},
-						MatchedOutputs: GroupedValues{Sum: outputSum, Values: outputDiff},
+			for k := 1; k < len(f.MatchedOutputs.Values); k++ {
+				var newArrInd, sourceArrInd int64
+				var results []GroupedValues
+				var data = make([]float64, k)
+
+				combinatorics(&results, f.MatchedOutputs.Values, int64(k),
+					newArrInd, sourceArrInd, data)
+
+				for m := range combinations {
+					for n := range results {
+						diff := combinations[m].Sum - results[n].Sum
+						if diff >= 0 && diff < f.Fee {
+							combined[i].Fee = roundOff(diff)
+							combined[i].Inputs = combinations[m]
+							combined[i].MatchedOutputs = results[n]
+
+							diffOut, SumOut := arrayDiff(results[n].Values,
+								f.MatchedOutputs.Values)
+							diffIn, SumIn := arrayDiff(combinations[m].Values,
+								f.Inputs.Values)
+
+							combined = append(combined, TxFundsFlow{
+								Fee: roundOff(SumIn - SumOut),
+								Inputs: GroupedValues{Sum: SumIn,
+									Values: diffIn},
+								MatchedOutputs: GroupedValues{Sum: SumOut,
+									Values: diffOut},
+							})
+							i = 0
+							continue mainLoop
+						}
 					}
-					break
 				}
 			}
 		}
-	}
-	if len(newData) > 0 {
-		return append(combined, newData...)
 	}
 	return combined
 }

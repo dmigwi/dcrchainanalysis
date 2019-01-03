@@ -7,12 +7,25 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/pprof"
+	"strconv"
 	"strings"
 
 	"github.com/decred/dcrd/rpcclient"
 	"github.com/gorilla/mux"
 	"github.com/raedahgroup/dcrchainanalysis/v1/analytics"
 	"github.com/raedahgroup/dcrchainanalysis/v1/rpcutils"
+)
+
+const (
+	healthMsg = `{` +
+		`"health": "Thanks for checking. Still alive.",` +
+		`"probability": "/api/v1/{tx-hash}", ` +
+		`"raw solutions": "/api/v1/{tx-hash}/all",` +
+		`"all paths": "/api/v1/{tx}/chain",` +
+		`"single path": "/api/v1/{tx}/chain/{index}"}`
+
+	defaultErrorMsg = `{"error": "Oops! Something went wrong, try different` +
+		` inputs or contact system maintainers if problem persist."}`
 )
 
 // explorer defines all the content needed to effectively serve http requests.
@@ -25,8 +38,7 @@ type explorer struct {
 
 // healthHandler helps checks if the system is up and running.
 func (exp *explorer) HealthHandler(w http.ResponseWriter, r *http.Request) {
-	healthMsg := []byte(`{"health": "Thanks for checking. I am still alive.",` +
-		`"probability": "/api/v1/{tx-hash}", "solutions": "/api/v1/{tx-hash}/all" }`)
+	healthMsg := []byte(healthMsg)
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
@@ -36,8 +48,7 @@ func (exp *explorer) HealthHandler(w http.ResponseWriter, r *http.Request) {
 // StatusHandler handles the various system statuses supported.
 func (exp *explorer) StatusHandler(w http.ResponseWriter, r *http.Request, err error) {
 	log.Error(err)
-	logErrorMsg := []byte(`{"error": "Oops! Something went wrong, try different` +
-		` inputs or contact system maintainers if problem persist."}`)
+	logErrorMsg := []byte(defaultErrorMsg)
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(http.StatusUnprocessableEntity)
@@ -99,6 +110,35 @@ func (exp *explorer) ChainHandler(w http.ResponseWriter, r *http.Request) {
 	transactionX := mux.Vars(r)["tx"]
 
 	chain, err := analytics.ChainDiscovery(exp.Client, transactionX)
+	if err != nil {
+		exp.StatusHandler(w, r, err)
+		return
+	}
+
+	strData, err := json.Marshal(chain)
+	if err != nil {
+		exp.StatusHandler(w, r, fmt.Errorf("error occured: %v", err))
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	w.Write(strData)
+}
+
+// ChainPathHandler reconstructs the probability solution to create one funds
+// flow path on the provided outputs index. If the index provided in greater than
+// the available output index, the outputs path with the last index is returned.
+func (exp *explorer) ChainPathHandler(w http.ResponseWriter, r *http.Request) {
+	transactionX := mux.Vars(r)["tx"]
+
+	txIndex, err := strconv.Atoi(mux.Vars(r)["index"])
+	if err != nil {
+		exp.StatusHandler(w, r, err)
+		return
+	}
+
+	chain, err := analytics.ChainDiscovery(exp.Client, transactionX, txIndex)
 	if err != nil {
 		exp.StatusHandler(w, r, err)
 		return
