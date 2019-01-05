@@ -57,7 +57,7 @@ func ChainDiscovery(client *rpcclient.Client, txHash string, outputIndex ...int)
 
 	var outPoints []rpcutils.TxOutput
 
-	var depth = 10
+	var depth = 5
 
 	switch {
 	// OutputIndex has been provided
@@ -79,7 +79,6 @@ func ChainDiscovery(client *rpcclient.Client, txHash string, outputIndex ...int)
 	}
 
 	for _, val := range outPoints {
-		var hubCount int
 		var stackTrace []*Hub
 		count := 1
 
@@ -89,7 +88,7 @@ func ChainDiscovery(client *rpcclient.Client, txHash string, outputIndex ...int)
 			Address: val.PkScriptData.Addresses[0],
 		}
 
-		err = handleDepths(entry, stackTrace, client, count, depth, hubCount)
+		err = handleDepths(entry, stackTrace, client, count, depth)
 		if err != nil {
 			return nil, err
 		}
@@ -104,8 +103,7 @@ func ChainDiscovery(client *rpcclient.Client, txHash string, outputIndex ...int)
 
 // handleDepths recusively creates a graph-like data structure that shows the
 // funds flow path from output (UTXO) to the source of funds at the provided depth.
-func handleDepths(curHub *Hub, stack []*Hub, client *rpcclient.Client,
-	count, depth, hubCount int) error {
+func handleDepths(curHub *Hub, stack []*Hub, client *rpcclient.Client, count, depth int) error {
 	err := curHub.getDepth(client)
 	if err != nil {
 		return err
@@ -118,13 +116,12 @@ func handleDepths(curHub *Hub, stack []*Hub, client *rpcclient.Client,
 			curHub = stack[len(stack)-1]
 			stack = stack[:len(stack)-1]
 
-			if hubCount+1 < len(curHub.Matched[curHub.setCount].Inputs) {
-				hubCount++
+			if curHub.Matched[curHub.setCount].hubCount+1 < len(curHub.Matched[curHub.setCount].Inputs) {
+				curHub.Matched[curHub.setCount].hubCount++
 				break
 
 			} else if curHub.setCount+1 < len(curHub.Matched) {
 				curHub.setCount++
-				hubCount = 0
 				break
 			}
 
@@ -134,14 +131,12 @@ func handleDepths(curHub *Hub, stack []*Hub, client *rpcclient.Client,
 		}
 	}
 
-	if len(curHub.Matched[curHub.setCount].Inputs) > hubCount {
-		// Adds items to the stack.
-		stack = append(stack, curHub)
-		curHub = curHub.Matched[curHub.setCount].
-			Inputs[hubCount]
-	}
+	// Adds items to the stack.
+	stack = append(stack, curHub)
+	curHub = curHub.Matched[curHub.setCount].
+		Inputs[curHub.Matched[curHub.setCount].hubCount]
 
-	return handleDepths(curHub, stack, client, count+1, depth, hubCount)
+	return handleDepths(curHub, stack, client, count+1, depth)
 }
 
 // getDepth appends all the sets linked to a given output after a given amount

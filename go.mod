@@ -25,6 +25,7 @@ require (
 	github.com/jessevdk/go-flags v1.4.0
 	github.com/jrick/logrotate v1.0.0
 	github.com/kr/pretty v0.1.0 // indirect
+	github.com/onsi/ginkgo v1.6.0
 	golang.org/x/crypto v0.0.0-20180820150726-614d502a4dac // indirect
 	golang.org/x/net v0.0.0-20180821023952-922f4815f713 // indirect
 	golang.org/x/sync v0.0.0-20180314180146-1d60e4601c6f // indirect

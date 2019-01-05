@@ -49,6 +49,9 @@ type Hub struct {
 // Set defines a group or individual inputs that can be correctly linked to an
 // output as their source of funds.
 type Set struct {
+	// hubCount helps track which hub has already been processed.
+	hubCount int
+
 	Inputs          []*Hub
 	PercentOfInputs float64
 }
