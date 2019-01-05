@@ -57,7 +57,7 @@ func ChainDiscovery(client *rpcclient.Client, txHash string, outputIndex ...int)
 
 	var outPoints []rpcutils.TxOutput
 
-	var depth = 3
+	var depth = 10
 
 	switch {
 	// OutputIndex has been provided
@@ -111,7 +111,7 @@ func handleDepths(curHub *Hub, stack []*Hub, client *rpcclient.Client,
 		return err
 	}
 
-	if depth == count {
+	if depth == count || curHub.TxHash == "" {
 		// backtrack till we find an unprocessed Hub.
 		for {
 			count--
@@ -134,9 +134,12 @@ func handleDepths(curHub *Hub, stack []*Hub, client *rpcclient.Client,
 		}
 	}
 
-	// Adds items to the stack.
-	stack = append(stack, curHub)
-	curHub = curHub.Matched[curHub.setCount].Inputs[hubCount]
+	if len(curHub.Matched[curHub.setCount].Inputs) > hubCount {
+		// Adds items to the stack.
+		stack = append(stack, curHub)
+		curHub = curHub.Matched[curHub.setCount].
+			Inputs[hubCount]
+	}
 
 	return handleDepths(curHub, stack, client, count+1, depth, hubCount)
 }
