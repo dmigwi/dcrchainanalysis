@@ -16,15 +16,18 @@ import (
 // their corresponding set of outputs for the provided transaction data.
 func TransactionFundsFlow(tx *rpcutils.Transaction) ([]*AllFundsFlows,
 	[]float64, []float64, error) {
+	// setLog helps avoid pushing too many log statements to the heap.
+	setLog := log.Level()
+	if setLog <= slog.LevelDebug {
+		log.Infof("Anaylyzing %s data. Please Wait...", tx.TxID)
+	}
+
 	// Retrieve the inputs and outputs from the transaction's data.
 	originalInputs, originalOutputs := extractAmounts(tx)
 	if len(originalInputs) == 0 || len(originalOutputs) == 0 {
 		return nil, originalInputs, originalOutputs,
 			errors.New("funds flow check needs both input(s) and output(s) of a transaction")
 	}
-
-	// setLog helps avoid pushing too many log statements to the heap.
-	setLog := log.Level()
 
 	if setLog <= slog.LevelInfo {
 		log.Info("Generating prefabricated granular buckets from both inputs and outputs")
