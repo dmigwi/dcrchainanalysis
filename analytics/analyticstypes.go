@@ -15,6 +15,8 @@ const (
 
 	// outpointData defines the ouput type of data.
 	outpointData txProperties = "outputs"
+
+	complexTransaction = 20
 )
 
 type txProperties string
@@ -33,10 +35,13 @@ type Node struct {
 // output TxHash to back in time where the source of funds can be identified.
 type Hub struct {
 	// Unique details of the current output.
-	Address     string
-	Amount      float64
-	TxHash      string
-	Probability float64 `json:",omitempty"`
+	Address string
+	Amount  float64
+	TxHash  string
+
+	// Probability Types
+	PathProbability float64 `json:",omitempty"`
+	hubProbability  float64
 
 	// setCount helps track which set whose entry has already been processed
 	// in a specific Hub.
@@ -74,8 +79,9 @@ type TxFundsFlow struct {
 // outputs funds flow.
 type AllFundsFlows struct {
 	Solution  int
-	TotalFees float64
-	FundsFlow []TxFundsFlow
+	TotalFees float64       `json:",omitempty"`
+	FundsFlow []TxFundsFlow `json:",omitempty"`
+	StatusMsg string        `json:",omitempty"`
 }
 
 // rawResults defines some compressed solutions data needed for further processing
@@ -98,6 +104,7 @@ type InputSets struct {
 	Set             []*Details
 	PercentOfInputs float64
 	inputs          []float64
+	StatusMsg       string `json:",omitempty"`
 }
 
 // FlowProbability defines the final transaction funds flow data that includes
@@ -108,6 +115,7 @@ type FlowProbability struct {
 	LinkingProbability float64
 	ProbableInputs     []*InputSets
 	uniqueInputs       map[float64]int
+	StatusMsg          string `json:",omitempty"`
 }
 
 // custom sort interface that sorts by Possible inputs in the probability set

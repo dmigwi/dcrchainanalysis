@@ -64,7 +64,7 @@ func ChainDiscovery(client *rpcclient.Client, txHash string, outputIndex ...int)
 	case len(outputIndex) > 0:
 		var txIndex int
 
-		if outputIndex[0] > len(tx.Outpoints) {
+		if outputIndex[0] > len(tx.Outpoints)-1 {
 			txIndex = len(tx.Outpoints) - 1
 
 		} else if outputIndex[0] > 0 {
@@ -80,7 +80,9 @@ func ChainDiscovery(client *rpcclient.Client, txHash string, outputIndex ...int)
 
 	for _, val := range outPoints {
 		var stackTrace []*Hub
+
 		count := 1
+		pathOdds := 1.0
 
 		entry := &Hub{
 			TxHash:  tx.TxID,
@@ -88,7 +90,7 @@ func ChainDiscovery(client *rpcclient.Client, txHash string, outputIndex ...int)
 			Address: val.PkScriptData.Addresses[0],
 		}
 
-		err = handleDepths(entry, stackTrace, client, count, depth)
+		err = handleDepths(entry, stackTrace, client, count, depth, pathOdds)
 		if err != nil {
 			return nil, err
 		}
@@ -103,14 +105,25 @@ func ChainDiscovery(client *rpcclient.Client, txHash string, outputIndex ...int)
 
 // handleDepths recusively creates a graph-like data structure that shows the
 // funds flow path from output (UTXO) to the source of funds at the provided depth.
-func handleDepths(curHub *Hub, stack []*Hub, client *rpcclient.Client, count, depth int) error {
+// totalOdds defines the effective path probability at the current depth.
+func handleDepths(curHub *Hub, stack []*Hub, client *rpcclient.Client, count, depth int,
+	totalOdds float64) error {
 	err := curHub.getDepth(client)
 	if err != nil {
 		return err
 	}
 
-	if depth == count || curHub.TxHash == "" {
+	if curHub.hubProbability > 0 {
+		totalOdds = roundOff(totalOdds * curHub.hubProbability)
+		curHub.PathProbability = totalOdds
+	}
+
+	if curHub.hubProbability == 1 || depth == count || curHub.TxHash == "" {
 		// backtrack till we find an unprocessed Hub.
+		if curHub.hubProbability > 0 {
+			totalOdds = roundOff(totalOdds / curHub.hubProbability)
+		}
+
 		for {
 			count--
 			curHub = stack[len(stack)-1]
@@ -136,7 +149,7 @@ func handleDepths(curHub *Hub, stack []*Hub, client *rpcclient.Client, count, de
 	curHub = curHub.Matched[curHub.setCount].
 		Inputs[curHub.Matched[curHub.setCount].hubCount]
 
-	return handleDepths(curHub, stack, client, count+1, depth)
+	return handleDepths(curHub, stack, client, count+1, depth, totalOdds)
 }
 
 // getDepth appends all the sets linked to a given output after a given amount
@@ -146,12 +159,12 @@ func (h *Hub) getDepth(client *rpcclient.Client) error {
 		return nil
 	}
 
-	probability, tx, err := RetrieveTxProbability(client, h.TxHash)
+	probabilityData, tx, err := RetrieveTxProbability(client, h.TxHash)
 	if err != nil {
 		return err
 	}
 
-	for _, item := range probability {
+	for _, item := range probabilityData {
 		if item.OutputAmount == h.Amount {
 			for _, entry := range item.ProbableInputs {
 				d, err := getSet(client, tx, entry)
@@ -159,7 +172,7 @@ func (h *Hub) getDepth(client *rpcclient.Client) error {
 					return err
 				}
 
-				h.Probability = item.LinkingProbability
+				h.hubProbability = item.LinkingProbability
 				h.Matched = append(h.Matched, d)
 			}
 		}
