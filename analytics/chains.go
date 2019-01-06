@@ -207,6 +207,7 @@ func getSet(client *rpcclient.Client, txData *rpcutils.Transaction,
 
 					set.Inputs = append(set.Inputs, s)
 					set.PercentOfInputs = matchedInputs.PercentOfInputs
+					set.StatusMsg = matchedInputs.StatusMsg
 
 					copy(inputs[k:], inputs[k+1:])
 					inputs = inputs[:len(inputs)-1]

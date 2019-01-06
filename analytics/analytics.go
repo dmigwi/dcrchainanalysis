@@ -136,6 +136,12 @@ func TxFundsFlowProbability(rawData []*AllFundsFlows,
 		return nil
 	}
 
+	if len(rawData) == 1 && rawData[0].StatusMsg != "" {
+		return []*FlowProbability{
+			&FlowProbability{StatusMsg: rawData[0].StatusMsg},
+		}
+	}
+
 	// Append the amounts count to the raw source inputs slice.
 	inSourceArr := appendDupsCount(rawInSourceArr)
 

@@ -65,6 +65,7 @@ type Set struct {
 
 	Inputs          []*Hub
 	PercentOfInputs float64
+	StatusMsg       string `json:",omitempty"`
 }
 
 // GroupedValues clusters together values as duplicates or other grouped values.
