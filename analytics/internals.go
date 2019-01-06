@@ -371,3 +371,21 @@ func getPrefabricatedBuckets(inputs, outputs []float64) (
 
 	return
 }
+
+// isTxComplex returns true if the number of unique amounts in either inputs or
+// outputs is greater than the set transaction complexity measure. Transaction
+// complexity measure refers to the maximum number of unique inputs or outputs
+// that can be processed using the combinations method in reasonably short time.
+func isTxComplex(inputs, outputs []float64) bool {
+	uniqueInputs := GroupDuplicates(inputs)
+	if len(uniqueInputs) > txComplexityMeasure {
+		return true
+	}
+
+	uniqueOutputs := GroupDuplicates(outputs)
+	if len(uniqueOutputs) > txComplexityMeasure {
+		return true
+	}
+
+	return false
+}

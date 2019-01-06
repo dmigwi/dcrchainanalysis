@@ -57,7 +57,7 @@ func ChainDiscovery(client *rpcclient.Client, txHash string, outputIndex ...int)
 
 	var outPoints []rpcutils.TxOutput
 
-	var depth = 5
+	var depth = 10
 
 	switch {
 	// OutputIndex has been provided

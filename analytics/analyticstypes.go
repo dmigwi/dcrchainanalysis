@@ -16,7 +16,13 @@ const (
 	// outpointData defines the ouput type of data.
 	outpointData txProperties = "outputs"
 
-	complexTransaction = 20
+	// txComplexityMeasure defines the number of unique transactions that may take
+	// too long to process than needed. They may have a minimum probability of 5%.
+	txComplexityMeasure = 20
+
+	// complexTxMsg refers to the default message returned if a transaction cannot
+	// be processed as fast as possible.
+	complexTxMsg = "This txo is less then 5% traceable"
 )
 
 type txProperties string

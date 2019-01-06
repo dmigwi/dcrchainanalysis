@@ -37,9 +37,18 @@ func TransactionFundsFlow(tx *rpcutils.Transaction) ([]*AllFundsFlows,
 	// minimum possible values.
 	granularBuckets, inputs, outputs := getPrefabricatedBuckets(originalInputs, originalOutputs)
 
-	if setLog <= slog.LevelDebug {
-		log.Infof("Found %d prefabricated granular buckets from inputs and outputs",
-			len(granularBuckets))
+	log.Infof("Found %d prefabricated granular buckets from inputs and outputs",
+		len(granularBuckets))
+
+	// If tx is complex exit
+	if isTxComplex(inputs, outputs) {
+		if setLog <= slog.LevelInfo {
+			log.Infof("Found tx %s to be complex thus could not be analyzed", tx.TxID)
+		}
+
+		return []*AllFundsFlows{
+			&AllFundsFlows{StatusMsg: complexTxMsg},
+		}, inputs, outputs, nil
 	}
 
 	if setLog <= slog.LevelInfo {
@@ -67,7 +76,7 @@ func TransactionFundsFlow(tx *rpcutils.Transaction) ([]*AllFundsFlows,
 	defBinaryTree := new(Node)
 	if err := defBinaryTree.Insert(outputCombinations); err != nil {
 		return nil, inputs, outputs,
-			fmt.Errorf("Inserting the sums combinations to the bianry tree failed: %v", err)
+			fmt.Errorf("Inserting the sums combinations to the binary tree failed: %v", err)
 	}
 
 	if setLog <= slog.LevelInfo {
@@ -75,8 +84,7 @@ func TransactionFundsFlow(tx *rpcutils.Transaction) ([]*AllFundsFlows,
 	}
 
 	matchedSum := defBinaryTree.FindX(inputCombinations, tx.Fees)
-
-	if setLog <= slog.LevelTrace {
+	if setLog <= slog.LevelInfo {
 		log.Trace("Matching the inputs and outputs selected to generate a solution(s)")
 	}
 
