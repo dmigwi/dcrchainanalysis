@@ -33,8 +33,8 @@ const (
 // TimeData defines the time data type that holds the block time from the
 // actual tx and time taken to process a given payload.
 type TimeData struct {
-	BlockTime int64  `json:",omitempty"`
-	Duration  string `json:",omitempty"`
+	TxTime   int64  `json:",omitempty"`
+	Duration string `json:",omitempty"`
 }
 
 // explorer defines all the content needed to effectively serve http requests.
@@ -76,7 +76,7 @@ func (exp *explorer) StatusHandler(w http.ResponseWriter, r *http.Request,
 	startTime time.Time, err error) {
 	log.Error(err)
 
-	data := fmt.Sprintf(defaultErrorMsg, time.Since(startTime).String())
+	data := fmt.Sprintf(defaultErrorMsg, durationInSec(startTime))
 	jsonWrite([]byte(data), http.StatusUnprocessableEntity, w)
 }
 
@@ -102,7 +102,7 @@ func (exp *explorer) AllTxSolutionsHandler(w http.ResponseWriter, r *http.Reques
 		rawSolution{
 			Data: rawTxSolution,
 			TimeData: TimeData{
-				BlockTime: txData.BlockTime, Duration: time.Since(t).String(),
+				TxTime: txData.BlockTime, Duration: durationInSec(t),
 			},
 		},
 		http.StatusOK, t, w, r)
@@ -124,7 +124,7 @@ func (exp *explorer) TxProbabilityHandler(w http.ResponseWriter, r *http.Request
 		probabilitySolution{
 			Data: solProbability,
 			TimeData: TimeData{
-				BlockTime: txData.BlockTime, Duration: time.Since(t).String(),
+				TxTime: txData.BlockTime, Duration: durationInSec(t),
 			},
 		},
 		http.StatusOK, t, w, r)
@@ -135,7 +135,7 @@ func (exp *explorer) ChainHandler(w http.ResponseWriter, r *http.Request) {
 	transactionX := mux.Vars(r)["tx"]
 	t := time.Now()
 
-	chain, blockTime, err := analytics.ChainDiscovery(exp.Client, transactionX)
+	chain, TxTime, err := analytics.ChainDiscovery(exp.Client, transactionX)
 	if err != nil {
 		exp.StatusHandler(w, r, t, err)
 		return
@@ -145,7 +145,7 @@ func (exp *explorer) ChainHandler(w http.ResponseWriter, r *http.Request) {
 		pathSolution{
 			Data: chain,
 			TimeData: TimeData{
-				BlockTime: blockTime, Duration: time.Since(t).String(),
+				TxTime: TxTime, Duration: durationInSec(t),
 			},
 		},
 		http.StatusOK, t, w, r)
@@ -164,7 +164,7 @@ func (exp *explorer) ChainPathHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	chain, blockTime, err := analytics.ChainDiscovery(exp.Client, transactionX, txIndex)
+	chain, TxTime, err := analytics.ChainDiscovery(exp.Client, transactionX, txIndex)
 	if err != nil {
 		exp.StatusHandler(w, r, t, err)
 		return
@@ -174,7 +174,7 @@ func (exp *explorer) ChainPathHandler(w http.ResponseWriter, r *http.Request) {
 		pathSolution{
 			Data: chain,
 			TimeData: TimeData{
-				BlockTime: blockTime, Duration: time.Since(t).String(),
+				TxTime: TxTime, Duration: durationInSec(t),
 			},
 		},
 		http.StatusOK, t, w, r)
@@ -213,4 +213,10 @@ func jsonWrite(data []byte, status int, w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
 	w.Write(data)
+}
+
+// durationInSec calculates the duration in seconds.
+func durationInSec(t time.Time) string {
+	d := time.Since(t)
+	return strconv.FormatFloat(d.Seconds(), 'f', -1, 64) + "s"
 }

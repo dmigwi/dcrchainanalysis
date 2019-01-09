@@ -18,8 +18,8 @@ func TransactionFundsFlow(tx *rpcutils.Transaction) ([]*AllFundsFlows,
 	[]float64, []float64, error) {
 	// setLog helps avoid pushing too many log statements to the heap.
 	setLog := log.Level()
-	if setLog <= slog.LevelDebug {
-		log.Infof("Anaylyzing %s data. Please Wait...", tx.TxID)
+	if setLog <= slog.LevelInfo {
+		log.Infof("Analyzing %s data. Please Wait...", tx.TxID)
 	}
 
 	// Retrieve the inputs and outputs from the transaction's data.
@@ -37,8 +37,10 @@ func TransactionFundsFlow(tx *rpcutils.Transaction) ([]*AllFundsFlows,
 	// minimum possible values.
 	granularBuckets, inputs, outputs := getPrefabricatedBuckets(originalInputs, originalOutputs)
 
-	log.Infof("Found %d prefabricated granular buckets from inputs and outputs",
-		len(granularBuckets))
+	if setLog <= slog.LevelInfo {
+		log.Infof("Found %d prefabricated granular buckets from inputs and outputs",
+			len(granularBuckets))
+	}
 
 	// If tx is complex exit
 	if isTxComplex(inputs, outputs) {
@@ -85,7 +87,7 @@ func TransactionFundsFlow(tx *rpcutils.Transaction) ([]*AllFundsFlows,
 
 	matchedSum := defBinaryTree.FindX(inputCombinations, tx.Fees)
 	if setLog <= slog.LevelInfo {
-		log.Trace("Matching the inputs and outputs selected to generate a solution(s)")
+		log.Info("Matching the inputs and outputs selected to generate a solution(s)")
 	}
 
 	solutionsChan := make(chan []*AllFundsFlows)
