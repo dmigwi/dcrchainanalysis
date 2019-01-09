@@ -26,7 +26,7 @@ const (
 		`"single path": "/api/v1/{tx}/chain/{index}"}`
 
 	defaultErrorMsg = `{"error": "Oops! Something went wrong, try different ` +
-		`inputs or contact system maintainers if problem persist.",` +
+		`inputs or contact system maintainers if problem persists.",` +
 		`"duration":"%s"}`
 )
 

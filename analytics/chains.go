@@ -107,7 +107,7 @@ func ChainDiscovery(client *rpcclient.Client, txHash string, outputIndex ...int)
 // totalOdds defines the effective path probability at the current depth.
 func handleDepths(curHub *Hub, stack []*Hub, client *rpcclient.Client, count int,
 	totalOdds, pathPOI float64) error {
-	pathPOI, err := curHub.getDepth(client, pathPOI)
+	err := curHub.getDepth(client, pathPOI)
 	if err != nil {
 		return err
 	}
@@ -145,6 +145,9 @@ func handleDepths(curHub *Hub, stack []*Hub, client *rpcclient.Client, count int
 		}
 	}
 
+	// pathPOI POI => PercentOfInput of the previous hub
+	pathPOI = curHub.Matched[curHub.setCount].PathPercentOfInputs
+
 	// Adds items to the stack.
 	stack = append(stack, curHub)
 	curHub = curHub.Matched[curHub.setCount].
@@ -155,14 +158,14 @@ func handleDepths(curHub *Hub, stack []*Hub, client *rpcclient.Client, count int
 
 // getDepth appends all the sets linked to a given output after a given amount
 // probability solution is resolved.
-func (h *Hub) getDepth(client *rpcclient.Client, pathPOI float64) (float64, error) {
+func (h *Hub) getDepth(client *rpcclient.Client, pathPOI float64) error {
 	if h.TxHash == "" {
-		return pathPOI, nil
+		return nil
 	}
 
 	probabilityData, tx, err := RetrieveTxProbability(client, h.TxHash)
 	if err != nil {
-		return pathPOI, err
+		return err
 	}
 
 	for _, item := range probabilityData {
@@ -170,7 +173,7 @@ func (h *Hub) getDepth(client *rpcclient.Client, pathPOI float64) (float64, erro
 			for _, entry := range item.ProbableInputs {
 				d, err := getSet(client, tx, entry, pathPOI)
 				if err != nil {
-					return pathPOI, err
+					return err
 				}
 
 				h.LevelProbability = item.LinkingProbability
@@ -182,10 +185,10 @@ func (h *Hub) getDepth(client *rpcclient.Client, pathPOI float64) (float64, erro
 			h.StatusMsg = item.StatusMsg
 		}
 	}
-	return pathPOI, nil
+	return nil
 }
 
-// The Set returned in a given output probability solution does not have a lot of
+// The sets returned in a given output probability solution does not have a lot of
 // data, this functions reconstructs the Set adding the necessary information.
 func getSet(client *rpcclient.Client, txData *rpcutils.Transaction,
 	matchedInputs *InputSets, pathPOI float64) (set Set, err error) {
@@ -193,8 +196,6 @@ func getSet(client *rpcclient.Client, txData *rpcutils.Transaction,
 	copy(inputs, txData.Inpoints)
 
 	for _, item := range matchedInputs.Set {
-		pathPOI = roundOff(pathPOI * matchedInputs.PercentOfInputs)
-
 		for i := 0; i < item.PossibleInputs; i++ {
 			for k, d := range inputs {
 				if d.ValueIn == item.Amount {
@@ -214,14 +215,15 @@ func getSet(client *rpcclient.Client, txData *rpcutils.Transaction,
 					}
 
 					set.Inputs = append(set.Inputs, s)
-					set.PercentOfInputs = matchedInputs.PercentOfInputs
-					set.PathPercentOfInputs = pathPOI
 
 					copy(inputs[k:], inputs[k+1:])
 					inputs = inputs[:len(inputs)-1]
 					break
 				}
 			}
+
+			set.LevelPercentOfInputs = matchedInputs.PercentOfInputs
+			set.PathPercentOfInputs = roundOff(pathPOI * set.LevelPercentOfInputs)
 		}
 	}
 	return

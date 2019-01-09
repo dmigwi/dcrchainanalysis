@@ -66,9 +66,9 @@ type Set struct {
 	// hubCount helps track which hub has already been processed.
 	hubCount int
 
-	PercentOfInputs     float64
-	PathPercentOfInputs float64
-	Inputs              []*Hub
+	PathPercentOfInputs  float64
+	LevelPercentOfInputs float64
+	Inputs               []*Hub
 }
 
 // GroupedValues clusters together values as duplicates or other grouped values.
