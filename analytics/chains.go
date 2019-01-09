@@ -45,10 +45,10 @@ func RetrieveTxProbability(client *rpcclient.Client, txHash string) (
 }
 
 // ChainDiscovery returns all the possible chains associated with the tx hash used.
-func ChainDiscovery(client *rpcclient.Client, txHash string, outputIndex ...int) ([]*Hub, error) {
+func ChainDiscovery(client *rpcclient.Client, txHash string, outputIndex ...int) ([]*Hub, int64, error) {
 	tx, err := RetrieveTxData(client, txHash)
 	if err != nil {
-		return nil, err
+		return nil, tx.BlockTime, err
 	}
 
 	// hubsChain defines the various paths with funds flows from a given output to
@@ -56,8 +56,6 @@ func ChainDiscovery(client *rpcclient.Client, txHash string, outputIndex ...int)
 	var hubsChain []*Hub
 
 	var outPoints []rpcutils.TxOutput
-
-	var depth = 5
 
 	switch {
 	// OutputIndex has been provided
@@ -82,17 +80,18 @@ func ChainDiscovery(client *rpcclient.Client, txHash string, outputIndex ...int)
 		var stackTrace []*Hub
 
 		count := 1
-		pathOdds := 1.0
+		pathOdds, pathPOI := 1.0, 1.0
 
 		entry := &Hub{
 			TxHash:  tx.TxID,
 			Amount:  val.Value,
-			Address: val.PkScriptData.Addresses[0],
+			Vout:    val.TxIndex,
+			address: val.PkScriptData.Addresses[0],
 		}
 
-		err = handleDepths(entry, stackTrace, client, count, depth, pathOdds)
+		err = handleDepths(entry, stackTrace, client, count, pathOdds, pathPOI)
 		if err != nil {
-			return nil, err
+			return nil, tx.BlockTime, err
 		}
 
 		hubsChain = append(hubsChain, entry)
@@ -100,31 +99,37 @@ func ChainDiscovery(client *rpcclient.Client, txHash string, outputIndex ...int)
 
 	log.Info("Finished auto chain(s) discovery and appending all needed data")
 
-	return hubsChain, nil
+	return hubsChain, tx.BlockTime, nil
 }
 
 // handleDepths recusively creates a graph-like data structure that shows the
 // funds flow path from output (UTXO) to the source of funds at the provided depth.
 // totalOdds defines the effective path probability at the current depth.
-func handleDepths(curHub *Hub, stack []*Hub, client *rpcclient.Client, count, depth int,
-	totalOdds float64) error {
-	err := curHub.getDepth(client)
+func handleDepths(curHub *Hub, stack []*Hub, client *rpcclient.Client, count int,
+	totalOdds, pathPOI float64) error {
+	err := curHub.getDepth(client, pathPOI)
 	if err != nil {
 		return err
 	}
 
-	if curHub.hubProbability > 0 {
-		totalOdds = roundOff(totalOdds * curHub.hubProbability)
+	if curHub.LevelProbability > 0 {
+		totalOdds = roundOff(totalOdds * curHub.LevelProbability)
 		curHub.PathProbability = totalOdds
 	}
 
-	if curHub.hubProbability == 1 || depth == count || curHub.TxHash == "" {
-		// backtrack till we find an unprocessed Hub.
-		if curHub.hubProbability > 0 {
-			totalOdds = roundOff(totalOdds / curHub.hubProbability)
+	// backtrack till we find an unprocessed Hub. LevelProbability should lie
+	// between 1 and 0.
+	if curHub.LevelProbability == 1 || curHub.PathProbability == 0 ||
+		curHub.TxHash == "" || curHub.StatusMsg != "" {
+		if curHub.LevelProbability > 0 {
+			totalOdds = roundOff(totalOdds / curHub.LevelProbability)
 		}
 
 		for {
+			if len(stack) == 0 {
+				return nil
+			}
+
 			count--
 			curHub = stack[len(stack)-1]
 			stack = stack[:len(stack)-1]
@@ -137,24 +142,23 @@ func handleDepths(curHub *Hub, stack []*Hub, client *rpcclient.Client, count, de
 				curHub.setCount++
 				break
 			}
-
-			if len(stack) == 0 {
-				return nil
-			}
 		}
 	}
+
+	// pathPOI POI => PercentOfInput of the previous hub
+	pathPOI = curHub.Matched[curHub.setCount].PathPercentOfInputs
 
 	// Adds items to the stack.
 	stack = append(stack, curHub)
 	curHub = curHub.Matched[curHub.setCount].
 		Inputs[curHub.Matched[curHub.setCount].hubCount]
 
-	return handleDepths(curHub, stack, client, count+1, depth, totalOdds)
+	return handleDepths(curHub, stack, client, count+1, totalOdds, pathPOI)
 }
 
 // getDepth appends all the sets linked to a given output after a given amount
 // probability solution is resolved.
-func (h *Hub) getDepth(client *rpcclient.Client) error {
+func (h *Hub) getDepth(client *rpcclient.Client, pathPOI float64) error {
 	if h.TxHash == "" {
 		return nil
 	}
@@ -167,23 +171,27 @@ func (h *Hub) getDepth(client *rpcclient.Client) error {
 	for _, item := range probabilityData {
 		if item.OutputAmount == h.Amount {
 			for _, entry := range item.ProbableInputs {
-				d, err := getSet(client, tx, entry)
+				d, err := getSet(client, tx, entry, pathPOI)
 				if err != nil {
 					return err
 				}
 
-				h.hubProbability = item.LinkingProbability
+				h.LevelProbability = item.LinkingProbability
 				h.Matched = append(h.Matched, d)
 			}
+		}
+
+		if item.StatusMsg != "" {
+			h.StatusMsg = item.StatusMsg
 		}
 	}
 	return nil
 }
 
-// The Set returned in a given output probability solution does not have a lot of
+// The sets returned in a given output probability solution does not have a lot of
 // data, this functions reconstructs the Set adding the necessary information.
 func getSet(client *rpcclient.Client, txData *rpcutils.Transaction,
-	matchedInputs *InputSets) (set Set, err error) {
+	matchedInputs *InputSets, pathPOI float64) (set Set, err error) {
 	inputs := make([]rpcutils.TxInput, len(txData.Inpoints))
 	copy(inputs, txData.Inpoints)
 
@@ -191,28 +199,31 @@ func getSet(client *rpcclient.Client, txData *rpcutils.Transaction,
 		for i := 0; i < item.PossibleInputs; i++ {
 			for k, d := range inputs {
 				if d.ValueIn == item.Amount {
-					s := &Hub{Amount: d.ValueIn, TxHash: d.TxHash}
-
-					tx, err := RetrieveTxData(client, s.TxHash)
+					tx, err := RetrieveTxData(client, d.TxHash)
 					if err != nil {
 						return Set{}, err
 					}
 
+					s := &Hub{Amount: d.ValueIn, TxHash: d.TxHash, Vout: d.OutputTxIndex}
+
 					// fetch the current hub's Address.
 					for k := range tx.Outpoints {
 						if d.OutputTxIndex == tx.Outpoints[k].TxIndex {
-							s.Address = tx.Outpoints[k].PkScriptData.Addresses[0]
+							s.address = tx.Outpoints[k].PkScriptData.Addresses[0]
+							break
 						}
 					}
 
 					set.Inputs = append(set.Inputs, s)
-					set.PercentOfInputs = matchedInputs.PercentOfInputs
 
 					copy(inputs[k:], inputs[k+1:])
 					inputs = inputs[:len(inputs)-1]
 					break
 				}
 			}
+
+			set.LevelPercentOfInputs = matchedInputs.PercentOfInputs
+			set.PathPercentOfInputs = roundOff(pathPOI * set.LevelPercentOfInputs)
 		}
 	}
 	return

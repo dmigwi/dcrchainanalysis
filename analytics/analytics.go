@@ -18,8 +18,8 @@ func TransactionFundsFlow(tx *rpcutils.Transaction) ([]*AllFundsFlows,
 	[]float64, []float64, error) {
 	// setLog helps avoid pushing too many log statements to the heap.
 	setLog := log.Level()
-	if setLog <= slog.LevelDebug {
-		log.Infof("Anaylyzing %s data. Please Wait...", tx.TxID)
+	if setLog <= slog.LevelInfo {
+		log.Infof("Analyzing %s data. Please Wait...", tx.TxID)
 	}
 
 	// Retrieve the inputs and outputs from the transaction's data.
@@ -37,9 +37,20 @@ func TransactionFundsFlow(tx *rpcutils.Transaction) ([]*AllFundsFlows,
 	// minimum possible values.
 	granularBuckets, inputs, outputs := getPrefabricatedBuckets(originalInputs, originalOutputs)
 
-	if setLog <= slog.LevelDebug {
+	if setLog <= slog.LevelInfo {
 		log.Infof("Found %d prefabricated granular buckets from inputs and outputs",
 			len(granularBuckets))
+	}
+
+	// If tx is complex exit
+	if isTxComplex(inputs, outputs) {
+		if setLog <= slog.LevelInfo {
+			log.Infof("Complex tx %s could not be analyzed", tx.TxID)
+		}
+
+		return []*AllFundsFlows{
+			&AllFundsFlows{StatusMsg: complexTxMsg},
+		}, inputs, outputs, nil
 	}
 
 	if setLog <= slog.LevelInfo {
@@ -67,7 +78,7 @@ func TransactionFundsFlow(tx *rpcutils.Transaction) ([]*AllFundsFlows,
 	defBinaryTree := new(Node)
 	if err := defBinaryTree.Insert(outputCombinations); err != nil {
 		return nil, inputs, outputs,
-			fmt.Errorf("Inserting the sums combinations to the bianry tree failed: %v", err)
+			fmt.Errorf("Inserting the sums combinations to the binary tree failed: %v", err)
 	}
 
 	if setLog <= slog.LevelInfo {
@@ -75,9 +86,8 @@ func TransactionFundsFlow(tx *rpcutils.Transaction) ([]*AllFundsFlows,
 	}
 
 	matchedSum := defBinaryTree.FindX(inputCombinations, tx.Fees)
-
-	if setLog <= slog.LevelTrace {
-		log.Trace("Matching the inputs and outputs selected to generate a solution(s)")
+	if setLog <= slog.LevelInfo {
+		log.Info("Matching the inputs and outputs selected to generate a solution(s)")
 	}
 
 	solutionsChan := make(chan []*AllFundsFlows)
@@ -126,6 +136,12 @@ func TxFundsFlowProbability(rawData []*AllFundsFlows,
 	rawInSourceArr, rawOutSourceArr []float64) []*FlowProbability {
 	if len(rawData) == 0 {
 		return nil
+	}
+
+	if len(rawData) == 1 && rawData[0].StatusMsg != "" {
+		return []*FlowProbability{
+			&FlowProbability{StatusMsg: rawData[0].StatusMsg},
+		}
 	}
 
 	// Append the amounts count to the raw source inputs slice.

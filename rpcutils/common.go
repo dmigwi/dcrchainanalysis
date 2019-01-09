@@ -2,15 +2,11 @@
 // See LICENSE for details.
 package rpcutils
 
-import (
-	"time"
-)
-
 // Block describes part of the block information trimmed from the block data
 // by the rpc client.
 type Block struct {
 	Height       int64
-	Time         time.Time
+	Time         int64
 	Voters       uint16
 	FreshStake   uint8
 	Hash         string
@@ -22,6 +18,7 @@ type Block struct {
 // Transaction holds generic block transaction data that contains both the
 // transaction's input or output data.
 type Transaction struct {
+	BlockTime   int64
 	TxID        string
 	TxType      int64
 	TxTree      int8
