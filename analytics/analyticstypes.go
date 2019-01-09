@@ -22,7 +22,7 @@ const (
 
 	// complexTxMsg refers to the default message returned if a transaction cannot
 	// be processed as fast as possible.
-	complexTxMsg = "This txo is less then 5% traceable"
+	complexTxMsg = "This txo is too complex to be analyzed now"
 )
 
 type txProperties string
@@ -41,13 +41,16 @@ type Node struct {
 // output TxHash to back in time where the source of funds can be identified.
 type Hub struct {
 	// Unique details of the current output.
-	Address string
+	address string
 	Amount  float64
 	TxHash  string
+	Vout    uint32
 
 	// Probability Types
-	PathProbability float64 `json:",omitempty"`
-	hubProbability  float64
+	PathProbability  float64 `json:",omitempty"`
+	LevelProbability float64 `json:",omitempty"`
+
+	StatusMsg string `json:",omitempty"`
 
 	// setCount helps track which set whose entry has already been processed
 	// in a specific Hub.
@@ -63,9 +66,9 @@ type Set struct {
 	// hubCount helps track which hub has already been processed.
 	hubCount int
 
-	Inputs          []*Hub
-	PercentOfInputs float64
-	StatusMsg       string `json:",omitempty"`
+	PercentOfInputs     float64
+	PathPercentOfInputs float64
+	Inputs              []*Hub
 }
 
 // GroupedValues clusters together values as duplicates or other grouped values.
@@ -120,9 +123,9 @@ type FlowProbability struct {
 	OutputAmount       float64
 	Count              int
 	LinkingProbability float64
-	ProbableInputs     []*InputSets
+	ProbableInputs     []*InputSets `json:",omitempty"`
+	StatusMsg          string       `json:",omitempty"`
 	uniqueInputs       map[float64]int
-	StatusMsg          string `json:",omitempty"`
 }
 
 // custom sort interface that sorts by Possible inputs in the probability set

@@ -43,7 +43,7 @@ func TransactionFundsFlow(tx *rpcutils.Transaction) ([]*AllFundsFlows,
 	// If tx is complex exit
 	if isTxComplex(inputs, outputs) {
 		if setLog <= slog.LevelInfo {
-			log.Infof("Found tx %s to be complex thus could not be analyzed", tx.TxID)
+			log.Infof("Complex tx %s could not be analyzed", tx.TxID)
 		}
 
 		return []*AllFundsFlows{

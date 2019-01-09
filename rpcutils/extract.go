@@ -21,7 +21,7 @@ func ExtractBlockData(blockData *wire.MsgBlock) *Block {
 		Hash:         blockData.BlockHash().String(),
 		MerkleRoot:   blockHeader.MerkleRoot.String(),
 		Height:       int64(blockHeader.Height),
-		Time:         blockHeader.Timestamp,
+		Time:         blockHeader.Timestamp.Unix(),
 		FreshStake:   blockHeader.FreshStake,
 		Voters:       blockHeader.Voters,
 		StakeRoot:    blockHeader.StakeRoot.String(),
@@ -33,15 +33,16 @@ func ExtractBlockData(blockData *wire.MsgBlock) *Block {
 // MsgBlock. Only the stake transactions data that is currently extracted.
 func ExtractBlockTransactions(blockData *wire.MsgBlock,
 	activeNet networkconfig.NetworkType) []*Transaction {
-	// block := ExtractBlockData(blockData)
+	block := ExtractBlockData(blockData)
 	sTxs := blockData.STransactions
 	txs := make([]*Transaction, len(sTxs))
 
 	for index, sTx := range sTxs {
 		tx := &Transaction{
-			TxID:   sTx.TxHash().String(),
-			TxType: int64(stake.DetermineTxType(sTx)),
-			TxTree: wire.TxTreeStake,
+			TxID:      sTx.TxHash().String(),
+			TxType:    int64(stake.DetermineTxType(sTx)),
+			TxTree:    wire.TxTreeStake,
+			BlockTime: block.Time,
 		}
 
 		var sent, spent float64
@@ -118,6 +119,7 @@ func ExtractRawTxTransaction(rawTx *dcrjson.TxRawResult) *Transaction {
 	tx.Inpoints = vins
 	tx.NumInpoint = uint32(len(vins))
 	tx.Sent = sent
+	tx.BlockTime = rawTx.Blocktime
 
 	vouts := make([]TxOutput, len(rawTx.Vout))
 
