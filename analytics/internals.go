@@ -4,6 +4,7 @@
 package analytics
 
 import (
+	"fmt"
 	"sort"
 
 	"github.com/raedahgroup/dcrchainanalysis/v1/rpcutils"
@@ -344,6 +345,7 @@ func getPrefabricatedBuckets(inputs, outputs []float64) (
 	newOutputs = make([]float64, len(outputs))
 	copy(newOutputs, outputs)
 
+	// check where txos can be matched directly to inputs.
 	for in := 0; in < len(newInputs); in++ {
 	subLoop:
 		for out := 0; out < len(newOutputs); out++ {
@@ -365,6 +367,98 @@ func getPrefabricatedBuckets(inputs, outputs []float64) (
 
 				in = 0
 				break subLoop
+			}
+		}
+	}
+	return
+}
+
+// changeTXORule uses hard maths rules to check if change amounts and various
+// duplicates count collectively match any input.
+func changeTXORule(inputs, outputs []float64, txFee float64) (matched []TxFundsFlow,
+	newInputs, newOutputs []float64) {
+	newInputs = make([]float64, len(inputs))
+	copy(newInputs, inputs)
+
+	newOutputs = make([]float64, len(outputs))
+	copy(newOutputs, outputs)
+
+	var changeAmounts, amountDups, deletedVals []float64
+
+	data := GroupDuplicates(outputs)
+
+	for key, v := range data {
+		if len(v.Values) == 1 {
+			changeAmounts = append(changeAmounts, key)
+		} else {
+			amountDups = append(amountDups, v.Values...)
+		}
+	}
+
+	fmt.Println(" ChangeAmounts count :", len(changeAmounts))
+	fmt.Println(" AmountDups count :", len(amountDups))
+
+	uniqueVals := make(map[float64]int)
+	var count int
+	var fee float64
+
+	for range newInputs {
+
+	subLoop:
+		for in := range newInputs {
+			for i := range changeAmounts {
+				diff := (newInputs[in] -
+					changeAmounts[i])
+				if diff < 0 {
+					continue
+				}
+
+				for k := range amountDups {
+					uniqueVals[amountDups[k]]++
+					count = uniqueVals[amountDups[k]]
+					fee = diff - (amountDups[k] * float64(count))
+
+					if fee >= 0 && fee < txFee {
+						out := []float64{changeAmounts[i]}
+
+						for i := 0; i < count; i++ {
+							out = append(out, amountDups[k])
+						}
+
+						f := TxFundsFlow{
+							Inputs:         getGroupedValues(newInputs[in : in+1]),
+							MatchedOutputs: getGroupedValues(out),
+						}
+
+						f.Fee = f.Inputs.Sum - f.MatchedOutputs.Sum
+
+						matched = append(matched, f)
+						deletedVals = append(deletedVals, newInputs[in])
+						deletedVals = append(deletedVals, out...)
+
+						copy(newInputs[:in], newInputs[in+1:])
+						newInputs = newInputs[:len(newInputs)-1]
+
+						copy(changeAmounts[:i], changeAmounts[i+1:])
+						changeAmounts = changeAmounts[:len(changeAmounts)-1]
+
+						copy(amountDups[:count], amountDups[k:])
+						amountDups = amountDups[:len(amountDups)-1]
+
+						break subLoop
+					}
+				}
+			}
+		}
+	}
+
+	// delete the entries already matched.
+	for c := range deletedVals {
+		for n := range newOutputs {
+			if newOutputs[n] == changeAmounts[c] {
+				copy(newOutputs[:n], newOutputs[n+1:])
+				newOutputs = newOutputs[:len(newOutputs)-1]
+				break
 			}
 		}
 	}

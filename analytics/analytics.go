@@ -4,6 +4,7 @@
 package analytics
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -42,53 +43,60 @@ func TransactionFundsFlow(tx *rpcutils.Transaction) ([]*AllFundsFlows,
 			len(granularBuckets))
 	}
 
+	matchedSum, inputs, outputs := changeTXORule(inputs, outputs, tx.Fees)
+
+	s, _ := json.Marshal(matchedSum)
+	fmt.Println(" >>>>> ", string(s))
+
 	// If tx is complex exit
-	if isTxComplex(inputs, outputs) {
-		if setLog <= slog.LevelInfo {
-			log.Infof("Complex tx %s could not be analyzed", tx.TxID)
-		}
+	// if isTxComplex(inputs, outputs) {
+	// 	if setLog <= slog.LevelInfo {
+	// 		log.Infof("Complex tx %s could not be analyzed", tx.TxID)
+	// 	}
 
-		return []*AllFundsFlows{
-			&AllFundsFlows{StatusMsg: complexTxMsg},
-		}, inputs, outputs, nil
-	}
+	// 	return []*AllFundsFlows{
+	// 		&AllFundsFlows{StatusMsg: complexTxMsg},
+	// 	}, inputs, outputs, nil
+	// }
 
-	if setLog <= slog.LevelInfo {
-		log.Info("Calculating all possible sum combinations for both inputs and outputs")
-	}
+	// if setLog <= slog.LevelInfo {
+	// 	log.Info("Calculating all possible sum combinations for both inputs and outputs")
+	// }
 
-	inputCombinations := getTotalCombinations(inputs, inpointData, true)
-	outputCombinations := getTotalCombinations(outputs, outpointData, true)
+	// inputCombinations := getTotalCombinations(inputs, inpointData, true)
+	// outputCombinations := getTotalCombinations(outputs, outpointData, true)
 
-	// drop doping element entry if it exists.
-	{
-		if inputs[len(inputs)-1] == dopingElement {
-			inputs = inputs[:len(inputs)-1]
-		}
+	// // drop doping element entry if it exists.
+	// {
+	// 	if inputs[len(inputs)-1] == dopingElement {
+	// 		inputs = inputs[:len(inputs)-1]
+	// 	}
 
-		if outputs[len(outputs)-1] == dopingElement {
-			outputs = outputs[:len(outputs)-1]
-		}
-	}
+	// 	if outputs[len(outputs)-1] == dopingElement {
+	// 		outputs = outputs[:len(outputs)-1]
+	// 	}
+	// }
 
-	if setLog <= slog.LevelInfo {
-		log.Info("Adding the outputs sums combination list to the binary tree.")
-	}
+	// if setLog <= slog.LevelInfo {
+	// 	log.Info("Adding the outputs sums combination list to the binary tree.")
+	// }
 
-	defBinaryTree := new(Node)
-	if err := defBinaryTree.Insert(outputCombinations); err != nil {
-		return nil, inputs, outputs,
-			fmt.Errorf("Inserting the sums combinations to the binary tree failed: %v", err)
-	}
+	// defBinaryTree := new(Node)
+	// if err := defBinaryTree.Insert(outputCombinations); err != nil {
+	// 	return nil, inputs, outputs,
+	// 		fmt.Errorf("Inserting the sums combinations to the binary tree failed: %v", err)
+	// }
 
-	if setLog <= slog.LevelInfo {
-		log.Info("Searching for matching sums between inputs and outputs amounts.")
-	}
+	// if setLog <= slog.LevelInfo {
+	// 	log.Info("Searching for matching sums between inputs and outputs amounts.")
+	// }
 
-	matchedSum := defBinaryTree.FindX(inputCombinations, tx.Fees)
-	if setLog <= slog.LevelInfo {
-		log.Info("Matching the inputs and outputs selected to generate a solution(s)")
-	}
+	// matchedSum := defBinaryTree.FindX(inputCombinations, tx.Fees)
+	// if setLog <= slog.LevelInfo {
+	// 	log.Info("Matching the inputs and outputs selected to generate a solution(s)")
+	// }
+
+	// matchedSum = append(matchedSum, matched...)
 
 	solutionsChan := make(chan []*AllFundsFlows)
 	// getSolutions runs on a different goroutine to avoid blocking the main goroutine.
